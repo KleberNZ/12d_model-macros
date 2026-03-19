@@ -1,0 +1,36 @@
+# 12d compiled outputs
+*.4do
+*.4dl
+
+# Logs / temp
+*.log
+*.tmp
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# VS Code local settings
+.vscode/
+
+# Optional: ignore workspace files
+*.code-workspace
+
+# Docs / configs not needed
+*.md
+!README.md
+*.json
+*.go
+*.txt
+*.pdf
+
+# Backup / test folders
+*BACKUP*
+*backup*
+
+# test folders
+test/
+*/test/
+
+# weird/junk
+tatus
