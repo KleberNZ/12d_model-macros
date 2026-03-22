@@ -2,9 +2,13 @@
 *.4do
 *.4dl
 
-# Logs / temp
+# logs / temp
 *.log
 *.tmp
+
+# documents not for repo
+*.pdf
+*.txt
 
 # OS
 Thumbs.db
@@ -13,24 +17,16 @@ Desktop.ini
 # VS Code local settings
 .vscode/
 
-# Optional: ignore workspace files
+# optional workspace files
 *.code-workspace
 
-# Docs / configs not needed
-*.md
-!README.md
-*.json
-*.go
-*.txt
-*.pdf
-
-# Backup / test folders
-*BACKUP*
-*backup*
+# junk
+tatus
 
 # test folders
 test/
 */test/
 
-# weird/junk
-tatus
+# backups
+*BACKUP*
+*backup*
