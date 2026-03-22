@@ -6,12 +6,12 @@
 **   Macro Name:           Add_to_mtf_snippet_panel.4dm
 **   Type:                 SOURCE
 **
-**   Brief description: BriefDescription
+**   Brief description: Append mtf_snippet to .mtf file at drainage pit location
 **
 **
 **---------------------------------------------------------------------
-**   Description: Description
-**
+**   Description: This macro will insert an .mtfsnippet (say semi-recessed cesspit mtfsnippet)
+**                to a .mtf file. The start location of the snippet is at the selected pit
 **
 **---------------------------------------------------------------------
 **   Update/Modification

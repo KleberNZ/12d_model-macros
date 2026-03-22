@@ -18,8 +18,12 @@
 **
 **---------------------------------------------------------------------
 **   Update/Modification
-**
-**   (C) Copyright 2025. All Rights Reserved.
+**  This macro may be reproduced, modified and used without restriction.
+**  The author grants all users Unlimited Use of the source code and any 
+**  associated files, for no fee. Unlimited Use includes compiling, running,
+**  and modifying the code for individual or integrated purposes.
+**  The author also grants 12d Solutions Pty Ltd and other users permission
+**  to incorporate this macro, in whole or in part, into other macros or programs.
 **---------------------------------------------------------------------
 */
 
@@ -30,8 +34,8 @@
 #define BUILD "15.0.001"
 
 // ----------------------------- INCLUDES -----------------------------
-#include "..\\..\\include\\standard_library.H"
-#include "..\\..\\include\\size_of.H"
+#include "..\\..\\include/standard_library.H"
+#include "..\\..\\include/size_of.H"
 /*global variables*/{
 
 

@@ -1,10 +1,10 @@
 /*---------------------------------------------------------------------
-**   Programmer:12d Model Macro Wizard GPT
-**   Date:_date             
-**   12D Model:            Vversion
-**   Version:              15
-**   Macro Name:           macro_name
-**   Type:                 SOURCE
+**   Programmer:KLP
+**   Date:26/11/25             
+**   12D Model:            15version
+**   Version:              001
+**   Macro Name:           Label_point_name_panel
+**   Type:                 TEXT
 **
 **   Brief description: Creates a text label for each selected point 
 **                      (Super with 1 vertex) and exports the point 

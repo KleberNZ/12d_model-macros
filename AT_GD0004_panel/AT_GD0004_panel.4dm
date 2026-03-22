@@ -9,7 +9,7 @@
 **   Brief description: Creates a SA kerb return using computators (parts). Based on AT TDM GD0004 standard drawing
 **
 **---------------------------------------------------------------------
-**   Description: Description
+**   Description:
 **  Creates a Super Alignment kerb return between two selected centreline strings using GD0004 compound curve geometry.
 **  The user selects the approach and departure strings with direction, specifies carriageway widths and curve type,
 **  and the macro generates the full horizontal and vertical SA geometry.
