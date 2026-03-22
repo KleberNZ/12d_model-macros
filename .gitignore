@@ -9,6 +9,12 @@
 # documents not for repo
 *.pdf
 *.txt
+*.json
+*.go
+
+# keep README if wanted
+*.md
+!README.md
 
 # OS
 Thumbs.db
@@ -23,9 +29,11 @@ Desktop.ini
 # junk
 tatus
 
-# test folders
+# test folders / test files
 test/
 */test/
+test.4dm
+TEST.4DM
 
 # backups
 *BACKUP*
