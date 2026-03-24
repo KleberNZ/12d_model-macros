@@ -1,9 +1,54 @@
-﻿/*---------------------------------------------------------------------
+$root = "C:\12d\12dPL_Data\Code"
+$vscode = "C:\12d\VSCode-12dPL\Code.exe"
+$profile = "12dPL"
+
+$name = Read-Host "Enter macro name (or type 'q' to cancel)"
+
+if ([string]::IsNullOrWhiteSpace($name) -or $name.Trim().ToLower() -in @('q','quit','exit')) {
+    Write-Host "Operation cancelled."
+    exit 0
+}
+
+if ($name.IndexOfAny(([System.IO.Path]::GetInvalidFileNameChars())) -ge 0) {
+    Write-Host "Macro name contains invalid file/folder characters."
+    exit 1
+}
+
+$folderPath = Join-Path $root $name
+$workspacePath = Join-Path $folderPath "$name.code-workspace"
+$macroPath = Join-Path $folderPath "$name.4dm"
+$readmePath = Join-Path $folderPath "README.md"
+
+if (Test-Path $folderPath) {
+    Write-Host "Folder already exists: $folderPath"
+    exit 1
+}
+
+New-Item -ItemType Directory -Path $folderPath | Out-Null
+
+$workspaceContent = @'
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../../include"
+		}
+	],
+	"settings": {}
+}
+'@
+
+$today = Get-Date -Format "yy/MM/dd"
+
+$macroContent = @"
+/*---------------------------------------------------------------------
 **   Programmer:user_name
-**   Date:26/03/23             
+**   Date:$today             
 **   12D Model:            Vversion
 **   Version:              001
-**   Macro Name:           Create_rec_trapezoidal_pond_panel.4dm
+**   Macro Name:           $name.4dm
 **   Type:                 SOURCE
 **
 **   Brief description: BriefDescription
@@ -134,4 +179,48 @@ void main(){
 
 
     mainPanel();
+}
+"@
+
+$readmeContent = @"
+# $name
+
+## Purpose
+Describe what the macro does.
+
+## Inputs
+Describe panel inputs / selected data.
+
+## Outputs
+Describe created or modified data.
+
+## Notes
+Add compile/runtime notes here.
+"@
+
+Set-Content -Path $workspacePath -Value $workspaceContent -Encoding UTF8
+Set-Content -Path $macroPath -Value $macroContent -Encoding UTF8
+Set-Content -Path $readmePath -Value $readmeContent -Encoding UTF8
+
+Write-Host "Created:"
+Write-Host "  Folder: $folderPath"
+Write-Host "  Workspace: $workspacePath"
+Write-Host "  Macro file: $macroPath"
+Write-Host "  README: $readmePath"
+
+Start-Process $vscode -ArgumentList "--profile", $profile, "`"$workspacePath`""
+
+# ---------------- GIT AUTO ADD + COMMIT ----------------
+try {
+    Set-Location $root
+
+    git add "$folderPath"
+
+    $commitMsg = "Add macro: $name"
+    git commit -m $commitMsg
+
+    Write-Host "Git: added and committed '$commitMsg'"
+}
+catch {
+    Write-Host "Git operation failed. You may need to commit manually."
 }

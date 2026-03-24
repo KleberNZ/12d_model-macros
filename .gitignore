@@ -38,3 +38,6 @@ TEST.4DM
 # backups
 *BACKUP*
 *backup*
+
+# ps1 files
+.ps1
