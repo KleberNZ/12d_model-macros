@@ -1,0 +1,137 @@
+﻿/*---------------------------------------------------------------------
+**   Programmer:user_name
+**   Date:26/04/01             
+**   12D Model:            Vversion
+**   Version:              001
+**   Macro Name:           Set_PC_DS_IL_from_main_panel.4dm
+**   Type:                 SOURCE
+**
+**   Brief description: BriefDescription
+**
+**
+**---------------------------------------------------------------------
+**   Description: Description
+**
+**
+**---------------------------------------------------------------------
+**   Update/Modification
+**
+**  This macro may be reproduced, modified and used without restriction.
+**  The author grants all users Unlimited Use of the source code and any 
+**  associated files, for no fee. Unlimited Use includes compiling, running,
+**  and modifying the code for individual or integrated purposes.
+**  The author also grants 12d Solutions Pty Ltd and other users permission
+**  to incorporate this macro, in whole or in part, into other macros or programs.
+**---------------------------------------------------------------------
+*/
+#define DEBUG_FILE      0
+#define ECHO_DEBUG_FILE 0
+#define ECHO_LINE_NO    0
+ 
+#define BUILD "version.0.001"
+ 
+// ----------------------------- INCLUDES -----------------------------
+#include "..\\..\\include/standard_library.H"
+#include "..\\..\\include/size_of.H"
+/*global variables*/{
+
+
+}
+
+void mainPanel(){
+ 
+    Text panelName="PanelName";
+    Panel              panel  = Create_panel              (panelName,TRUE);
+    Vertical_Group     vgroup = Create_vertical_group     (-1         );
+    Colour_Message_Box cmbMsg = Create_colour_message_box (""         );
+
+    ///////////////////CREATE INPUT WIDGETS////////////////
+    //TODO: create some input fields
+    
+    ///////////////ADDING BUTTONS ALONG THE BOTTOM///////////////////////////
+    Horizontal_Group bgroup = Create_button_group();
+    Button process     = Create_button       ("&Process" ,"process");
+    Button finish      = Create_finish_button("Finish"   ,"Finish" );
+    Button help_button = Create_help_button  (panel      ,"Help"   );
+    Append(process      ,bgroup);
+    Append(finish       ,bgroup);
+    Append(help_button  ,bgroup);
+    ///////////////ADDING WIDGETS TO PANEL///////////////////////////
+    //TODO: add your widgets to vgroup
+
+    //Append(widget1    ,vgroup);
+    //Append(widget2    ,vgroup);
+
+
+    Append(cmbMsg    ,vgroup);
+    Append(bgroup    ,vgroup);
+
+
+    Append(vgroup,panel);
+    Show_widget(panel);
+    Integer doit = 1;
+    while(doit)
+    {
+        Text cmd="",msg = "";
+        Integer id,ret = Wait_on_widgets(id,cmd,msg);
+ 
+        switch(cmd)
+        {
+        case "keystroke" :
+        case "set_focus"  :
+        case "kill_focus" :
+        {
+            continue;
+        }
+        break;
+        case "CodeShutdown" :
+        {
+            Set_exit_code(cmd);
+        }
+        break;
+        }
+        switch(id)
+        {
+        case Get_id(panel) :
+        {
+            if(cmd == "Panel Quit") doit = 0;
+            if(cmd == "Panel About") about_panel(panel);
+        }
+        break; 
+        case Get_id(process) :
+        {
+            if(cmd == "process")
+            {
+                //TODO: declare your widget variables
+
+
+
+                //TODO: validate widgets
+
+
+
+
+                //TODO: do calc
+
+
+
+
+                Set_data(cmbMsg ,"Process finished");
+            }
+        }
+        break;
+        default :
+        {
+            if(cmd == "Finish")doit = 0;
+        }
+        break; 
+        }
+    }
+}
+void main(){
+
+    // do some checks before you go to the main panel
+
+
+    mainPanel();
+}
