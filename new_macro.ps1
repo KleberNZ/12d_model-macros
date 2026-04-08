@@ -199,7 +199,8 @@ Add compile/runtime notes here.
 "@
 
 Set-Content -Path $workspacePath -Value $workspaceContent -Encoding UTF8
-Set-Content -Path $macroPath -Value $macroContent -Encoding UTF8
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText($macroPath, $macroContent, $utf8NoBom)
 Set-Content -Path $readmePath -Value $readmeContent -Encoding UTF8
 
 Write-Host "Created:"
