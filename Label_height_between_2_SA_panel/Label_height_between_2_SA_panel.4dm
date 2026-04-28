@@ -310,7 +310,7 @@ void mainPanel(){
         {
             if(cmd == "process")
             {
-                //TODO: declare your widget variables
+                // declare your widget variables
                 Dynamic_Element sa_elements;
                 Text top_suffix = "";
                 Text bottom_suffix = "";
@@ -327,7 +327,7 @@ void mainPanel(){
                 Integer do_max = 0;
                 Integer decimals = 3;
 
-                //TODO: validate widgets
+                // declare your widget variables
                 rc = Validate(sb_source,sa_elements);   // success = 1
                 if(rc != 1)
                 {
@@ -486,7 +486,7 @@ void mainPanel(){
                     continue;
                 }
 
-                //TODO: do calc
+                // declare your calculation variables
 
                 Print("===== SA Height Difference Labels Macro =====\n");
                 Integer i,j;
