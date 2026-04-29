@@ -2,7 +2,7 @@
 **   Programmer:KLP
 **   Date:24/03/26             
 **   12D Model:            V15
-**   Version:              001
+**   Version:              002
 **   Macro Name:           Create_GD05_SRP_trapezoidal_pond_panel.4dm
 **   Type:                 SOURCE
 **
@@ -24,7 +24,7 @@
 #define ECHO_DEBUG_FILE 0
 #define ECHO_LINE_NO    0
  
-#define BUILD "15.0.001"
+#define BUILD "15.C1t"
  
 // ----------------------------- INCLUDES -----------------------------
 #include "..\\..\\include/standard_library.H"
