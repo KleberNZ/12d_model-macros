@@ -51,6 +51,7 @@ void mainPanel(){
     Real_Box   rb_ratio          = Create_real_box("Length/Width ratio (3-5)",cmbMsg);
     Real_Box   rb_storage_depth  = Create_real_box("Storage depth (1-2m)",cmbMsg);
     Real_Box   rb_spillway_base_width = Create_real_box("Spillway base width (min. 6m)",cmbMsg);
+    Real_Box   rb_forebay_width  = Create_real_box("Forebay Width",cmbMsg);
 
     Set_data(xyzb_origin, 0, 0, 0);
     Set_data(ab_bearing,0.0);
@@ -58,7 +59,8 @@ void mainPanel(){
     Set_data(rb_ratio,3.0);
     Set_data(rb_storage_depth,1.0);
     Set_data(rb_spillway_base_width,6.0);
-    
+    Set_data(rb_forebay_width,2.0);
+
     ///////////////ADDING BUTTONS ALONG THE BOTTOM///////////////////////////
     Horizontal_Group bgroup = Create_button_group();
     Button process     = Create_button       ("&Process" ,"process");
@@ -86,6 +88,7 @@ void mainPanel(){
     Append(rb_crest_width   ,vg_srp_shape);
     Append(rb_spillway_base_width ,vg_srp_shape);
     Append(rb_storage_depth ,vg_srp_shape);
+    Append(rb_forebay_width ,vg_srp_shape);
 
     Append(mb_output_model,vg_output);
     Append(nb_string_name ,vg_output);
@@ -164,6 +167,9 @@ void mainPanel(){
                 Real storage_depth=0.0;
                 if(Validate(rb_storage_depth,storage_depth)==FALSE) break;
 
+                Real forebay_width=0.0;
+                if(Validate(rb_forebay_width,forebay_width)==FALSE) break;
+
                 // validate widgets
                 if(long_side <= 0.0)
                 {
@@ -207,12 +213,21 @@ void mainPanel(){
                     break;
                 }
 
+                if(forebay_width < 2.0)
+                {
+                    Set_data(cmbMsg,"Forebay Width must be >= 2.0");
+                    Set_focus(rb_forebay_width);
+                    break;
+                }
+
                 // do calc
                 Text embankment_name     = string_name + " Top of Embankment";
                 Text pond_edge_name      = string_name + " Pond Edge";
                 Text wse_name            = string_name + " WSE";
                 Text base_name           = string_name + " Base";
                 Text level_spreader_name = string_name + " Level Spreader";
+                Text forebay_top_name    = string_name + " Forebay Top";
+                Text forebay_base_name   = string_name + " Forebay Base";
 
                 // Pond side slope batters
                 Real side_batter_left  = 2.0;
@@ -321,6 +336,39 @@ void mainPanel(){
                 Real ls_y_max = wse_y_min - level_spreader_offset;
                 Real ls_y_min = ls_y_max - level_spreader_width;
 
+                // Forebay geometry
+
+                Real forebay_depth = 1.0;
+                Real forebay_batter = 1.0;
+                Real forebay_inset = forebay_depth * forebay_batter;
+
+                Real forebay_top_rl = embankment_rl;
+                Real forebay_base_rl = level_spreader_rl - 1.0;
+
+                // top forebay matches Top of Embankment width and RL
+                Real fb_top_x_min = emb_x_min;
+                Real fb_top_x_max = emb_x_max;
+                Real fb_top_y_max = emb_y_min;
+                Real fb_top_y_min = emb_y_min - forebay_width;
+
+                // base inset from TOB forebay top footprint
+                Real fb_base_x_min = fb_top_x_min + forebay_inset;
+                Real fb_base_x_max = fb_top_x_max - forebay_inset;
+                Real fb_base_y_max = fb_top_y_max - forebay_inset;
+                Real fb_base_y_min = fb_top_y_min + forebay_inset;
+
+                if(fb_base_x_max <= fb_base_x_min)
+                {
+                    Set_data(cmbMsg,"Forebay base width <= 0. Increase TOB width.");
+                    break;
+                }
+
+                if(fb_base_y_max < fb_base_y_min)
+                {
+                    Set_data(cmbMsg,"Forebay base length < 0. Increase Forebay Width.");
+                    break;
+                }
+
                 // ---------------- 1. Top of embankment ----------------
                 Element embankment_super = Create_super(0,8);
                 Set_super_use_3d_level(embankment_super,1);
@@ -336,7 +384,7 @@ void mainPanel(){
 
                 Set_name(embankment_super,embankment_name);
                 Set_model(embankment_super,output_model);
-                String_close(embankment_super);
+                // String_close(embankment_super); // open entry side
                 Set_colour(embankment_super,511);
                 Set_super_use_segment_colour(embankment_super,1);
                 Set_super_segment_colour(embankment_super,1,511);
@@ -354,14 +402,14 @@ void mainPanel(){
                 Element pond_edge_super = Create_super(0,8);
                 Set_super_use_3d_level(pond_edge_super,1);
 
-                Set_super_data(pond_edge_super,1,crest_x_min,crest_y_min,embankment_rl,0.0,0);
+                Set_super_data(pond_edge_super,1,crest_x_min,crest_y_min - forebay_width,embankment_rl,0.0,0);
                 Set_super_data(pond_edge_super,2,crest_x_min,crest_y_max,embankment_rl,0.0,0);
                 Set_super_data(pond_edge_super,3,crest_spill_top_left_x,crest_spill_top_y,embankment_rl,0.0,0);
                 Set_super_data(pond_edge_super,4,crest_spill_base_left_x,crest_spill_base_y,spillway_rl,0.0,0);
                 Set_super_data(pond_edge_super,5,crest_spill_base_right_x,crest_spill_base_y,spillway_rl,0.0,0);
                 Set_super_data(pond_edge_super,6,crest_spill_top_right_x,crest_spill_top_y,embankment_rl,0.0,0);
                 Set_super_data(pond_edge_super,7,crest_x_max,crest_y_max,embankment_rl,0.0,0);
-                Set_super_data(pond_edge_super,8,crest_x_max,crest_y_min,embankment_rl,0.0,0);
+                Set_super_data(pond_edge_super,8,crest_x_max,crest_y_min - forebay_width,embankment_rl,0.0,0);
 
                 Set_name(pond_edge_super,pond_edge_name);
                 Set_model(pond_edge_super,output_model);
@@ -399,6 +447,38 @@ void mainPanel(){
                 Set_super_segment_colour(pond_super,4,523);
 
                 Append(pond_super,de_all);
+
+                // ---------------- 4. Forebay top ----------------
+                Element forebay_top_super = Create_super(0,4);
+                Set_super_use_3d_level(forebay_top_super,1);
+
+                Set_super_data(forebay_top_super,1,fb_top_x_max,fb_top_y_max,forebay_top_rl,0.0,0);
+                Set_super_data(forebay_top_super,2,fb_top_x_max,fb_top_y_min,forebay_top_rl,0.0,0);
+                Set_super_data(forebay_top_super,3,fb_top_x_min,fb_top_y_min,forebay_top_rl,0.0,0);
+                Set_super_data(forebay_top_super,4,fb_top_x_min,fb_top_y_max,forebay_top_rl,0.0,0);
+
+                Set_name(forebay_top_super,forebay_top_name);
+                Set_model(forebay_top_super,output_model);
+                // String_close(forebay_top_super); // open entry side
+                Set_colour(forebay_top_super,511);
+
+                Append(forebay_top_super,de_all);
+
+                // ---------------- 5. Forebay base ----------------
+                Element forebay_base_super = Create_super(0,4);
+                Set_super_use_3d_level(forebay_base_super,1);
+
+                Set_super_data(forebay_base_super,1,fb_base_x_min,fb_base_y_min,forebay_base_rl,0.0,0);
+                Set_super_data(forebay_base_super,2,fb_base_x_min,fb_base_y_max,forebay_base_rl,0.0,0);
+                Set_super_data(forebay_base_super,3,fb_base_x_max,fb_base_y_max,forebay_base_rl,0.0,0);
+                Set_super_data(forebay_base_super,4,fb_base_x_max,fb_base_y_min,forebay_base_rl,0.0,0);
+
+                Set_name(forebay_base_super,forebay_base_name);
+                Set_model(forebay_base_super,output_model);
+                String_close(forebay_base_super);
+                Set_colour(forebay_base_super,515);
+
+                Append(forebay_base_super,de_all);
 
                 // ---------------- 4. Pond base ----------------
                 Element base_super = Create_super(0,4);
