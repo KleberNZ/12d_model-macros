@@ -29,8 +29,8 @@
 #define BUILD "version.0.001"
  
 // ----------------------------- INCLUDES -----------------------------
-#include "..\\..\\include/standard_library.h"
-#include "..\\..\\include/set_ups.h"
+#include "standard_library.h"
+#include "set_ups.h"
 
 /*global variables*/{
 
@@ -262,14 +262,13 @@ void mainPanel(){
                     Text new_name = "Centroid_of_" + nm;
                     Valid_string_name(new_name, new_name);
 
-                    // Create a 1-vertex 2D element at centroid
-                    // Manual: §5.53 Create_2d(Integer num_pts), Set_2d_data(Element, idx, x, y), Set_2d_data(Element, z)
-                    Element pt = Create_2d(1);
+                    // Create a 1-vertex Super element at centroid
+                    // V15 replacement for obsolete Create_2d / Set_2d_data calls
+                    Element pt = Create_super(String_Super_Bit(ZCoord_Array), 1);
                     Set_name(pt, new_name);
 
                     // then write name & coords
-                    Set_2d_data(pt, 1, cx, cy);
-                    Set_2d_data(pt, avgz);
+                    Set_super_vertex_coord(pt, 1, cx, cy, avgz);
                     Calc_extent(pt);  // recalc extent after coord change
 
                     Append(pt, all_cp_elts); // ADD THEM TO THE list of elements

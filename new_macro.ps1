@@ -1,52 +1,118 @@
-$root = "C:\12d\12dPL_Data\Code"
-$vscode = "C:\12d\VSCode-12dPL\Code.exe"
-$profile = "12dPL"
+# ---------------------------------------------------------------------
+# new_macro.ps1
+#
+# Creates a new 12dPL macro folder under:
+#   C:\12d\12dPL_Data\Code
+#
+# Each macro gets:
+#   <macro_name>.4dm
+#   README.md
+#
+# Opens VS Code using the central workspace:
+#   C:\12d\12dPL_Data
+#
+# Does NOT create individual .code-workspace files.
+# ---------------------------------------------------------------------
 
-$name = Read-Host "Enter macro name (or type 'q' to cancel)"
+$ErrorActionPreference = "Stop"
 
-if ([string]::IsNullOrWhiteSpace($name) -or $name.Trim().ToLower() -in @('q','quit','exit')) {
-    Write-Host "Operation cancelled."
-    exit 0
-}
+try {
+    # ----------------------------- CONFIG -----------------------------
 
-if ($name.IndexOfAny(([System.IO.Path]::GetInvalidFileNameChars())) -ge 0) {
-    Write-Host "Macro name contains invalid file/folder characters."
-    exit 1
-}
+    $workspaceRoot = "C:\12d\12dPL_Data"
+    $codeRoot      = Join-Path $workspaceRoot "Code"
+    $includeRoot   = Join-Path $workspaceRoot "include"
 
-$folderPath = Join-Path $root $name
-$workspacePath = Join-Path $folderPath "$name.code-workspace"
-$macroPath = Join-Path $folderPath "$name.4dm"
-$readmePath = Join-Path $folderPath "README.md"
+    $vscode  = "C:\12d\VSCode-12dPL\Code.exe"
+    $profile = "12dPL"
 
-if (Test-Path $folderPath) {
-    Write-Host "Folder already exists: $folderPath"
-    exit 1
-}
+    # ----------------------------- PRE-CHECKS -----------------------------
 
-New-Item -ItemType Directory -Path $folderPath | Out-Null
+    if (-not (Test-Path $workspaceRoot)) {
+        throw "Workspace root not found: $workspaceRoot"
+    }
 
-$workspaceContent = @'
-{
-	"folders": [
-		{
-			"path": "."
-		},
-		{
-			"path": "../../include"
-		}
-	],
-	"settings": {}
-}
-'@
+    if (-not (Test-Path $codeRoot)) {
+        Write-Host "Code folder not found. Creating: $codeRoot"
+        New-Item -ItemType Directory -Path $codeRoot | Out-Null
+    }
 
-$today = Get-Date -Format "yy/MM/dd"
+    if (-not (Test-Path $includeRoot)) {
+        throw "Include folder not found: $includeRoot"
+    }
 
-$macroContent = @"
+    $standardLibrary = Join-Path $includeRoot "standard_library.H"
+    $sizeOfHeader    = Join-Path $includeRoot "size_of.h"
+
+    if (-not (Test-Path $standardLibrary)) {
+        throw "Missing include file: $standardLibrary"
+    }
+
+    if (-not (Test-Path $sizeOfHeader)) {
+        throw "Missing include file: $sizeOfHeader"
+    }
+
+    # ----------------------------- USER INPUT -----------------------------
+
+    $name = Read-Host "Enter macro name, for example My_New_Macro_panel, or type q to cancel"
+
+    if ([string]::IsNullOrWhiteSpace($name)) {
+        Write-Host "No macro name entered. Operation cancelled."
+        exit 0
+    }
+
+    $name = $name.Trim()
+
+    if ($name.ToLower() -in @("q", "quit", "exit", "cancel")) {
+        Write-Host "Operation cancelled."
+        exit 0
+    }
+
+    if ($name.ToLower().EndsWith(".4dm")) {
+        $name = [System.IO.Path]::GetFileNameWithoutExtension($name)
+    }
+
+    $invalidChars = [System.IO.Path]::GetInvalidFileNameChars()
+
+    if ($name.IndexOfAny($invalidChars) -ge 0) {
+        throw "Invalid macro name. The name contains characters that are not allowed in Windows file/folder names: $name"
+    }
+
+    if ($name -match "\s") {
+        Write-Host "Macro name contains spaces. This is not recommended."
+        $continue = Read-Host "Continue anyway? y/n"
+
+        if ($continue.ToLower() -ne "y") {
+            Write-Host "Operation cancelled."
+            exit 0
+        }
+    }
+
+    # ----------------------------- PATHS -----------------------------
+
+    $folderPath = Join-Path $codeRoot $name
+    $macroPath  = Join-Path $folderPath "$name.4dm"
+    $readmePath = Join-Path $folderPath "README.md"
+
+    if (Test-Path $folderPath) {
+        throw "Macro folder already exists: $folderPath"
+    }
+
+    # ----------------------------- CREATE FOLDER -----------------------------
+
+    New-Item -ItemType Directory -Path $folderPath | Out-Null
+
+    # ----------------------------- TEMPLATE DATA -----------------------------
+
+    $today = Get-Date -Format "yyyy-MM-dd"
+
+    # ----------------------------- CREATE MACRO TEMPLATE -----------------------------
+
+	$macroContent = @"
 /*---------------------------------------------------------------------
-**   Programmer:user_name
-**   Date:$today             
-**   12D Model:            Vversion
+**   Programmer:           KLP
+**   Date:                 $today
+**   12D Model:            V15
 **   Version:              001
 **   Macro Name:           $name.4dm
 **   Type:                 SOURCE
@@ -76,13 +142,13 @@ $macroContent = @"
 #define BUILD "version.0.001"
  
 // ----------------------------- INCLUDES -----------------------------
-#include "..\\..\\include/standard_library.H"
-#include "..\\..\\include/size_of.H"
+#include "standard_library.h"
+#include "size_of.h"
 /*global variables*/{
 
 
 }
-
+// ----------------------------- PANEL -----------------------------
 void mainPanel(){
  
     Text panelName="PanelName";
@@ -114,6 +180,7 @@ void mainPanel(){
 
     Append(vgroup,panel);
     Show_widget(panel);
+	// ----------------------------- EVENT LOOP -----------------------------
     Integer doit = 1;
     while(doit)
     {
@@ -173,6 +240,7 @@ void mainPanel(){
         }
     }
 }
+// ----------------------------- MAIN -----------------------------
 void main(){
 
     // do some checks before you go to the main panel
@@ -182,46 +250,139 @@ void main(){
 }
 "@
 
-$readmeContent = @"
+    # ----------------------------- CREATE README -----------------------------
+
+    $readmeContent = @"
 # $name
 
 ## Purpose
-Describe what the macro does.
+
+TODO: Describe what this macro does.
+
+## Location
+
+C:\12d\12dPL_Data\Code\$name
+
+## Source
+
+$name.4dm
+
+## Compile Method
+
+Open VS Code from:
+
+C:\12d\12dPL_Data
+
+Then open:
+
+Code\$name\$name.4dm
+
+Compile using:
+
+Ctrl+Shift+P > 12dPL: Compile Current File
+
+Do not use F7 unless the old task system has been deliberately updated.
+
+## Include Setup
+
+This macro uses clean includes:
+
+#include "standard_library.H"
+#include "size_of.h"
+
+These rely on the central workspace setting:
+
+12dpl.compiler.includePaths = C:\12d\12dPL_Data\include
 
 ## Inputs
-Describe panel inputs / selected data.
+
+TODO: Describe user inputs, selected models, strings, files, or panel options.
 
 ## Outputs
-Describe created or modified data.
+
+TODO: Describe created/modified models, strings, files, reports, or logs.
 
 ## Notes
-Add compile/runtime notes here.
+
+TODO: Add implementation notes, assumptions, limitations, and testing notes.
+
+## Revision History
+
+| Version | Date | Notes |
+|---|---|---|
+| 001 | $today | Initial macro |
 "@
 
-Set-Content -Path $workspacePath -Value $workspaceContent -Encoding UTF8
-$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-[System.IO.File]::WriteAllText($macroPath, $macroContent, $utf8NoBom)
-Set-Content -Path $readmePath -Value $readmeContent -Encoding UTF8
+    # ----------------------------- WRITE FILES -----------------------------
 
-Write-Host "Created:"
-Write-Host "  Folder: $folderPath"
-Write-Host "  Workspace: $workspacePath"
-Write-Host "  Macro file: $macroPath"
-Write-Host "  README: $readmePath"
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
-Start-Process $vscode -ArgumentList "--profile", $profile, "`"$workspacePath`""
+    [System.IO.File]::WriteAllText($macroPath,  $macroContent,  $utf8NoBom)
+    [System.IO.File]::WriteAllText($readmePath, $readmeContent, $utf8NoBom)
 
-# ---------------- GIT AUTO ADD + COMMIT ----------------
-try {
-    Set-Location $root
+    Write-Host ""
+    Write-Host "Created new macro:"
+    Write-Host "  Folder: $folderPath"
+    Write-Host "  Macro:  $macroPath"
+    Write-Host "  README: $readmePath"
+    Write-Host ""
 
-    git add "$folderPath"
+    # ----------------------------- OPEN VS CODE -----------------------------
 
-    $commitMsg = "Add macro: $name"
-    git commit -m $commitMsg
+    if (Test-Path $vscode) {
+        Write-Host "Opening VS Code central workspace:"
+        Write-Host "  $workspaceRoot"
+        Write-Host ""
 
-    Write-Host "Git: added and committed '$commitMsg'"
+        Start-Process $vscode -ArgumentList "--profile", $profile, "`"$workspaceRoot`"", "`"$macroPath`""
+    }
+    else {
+        Write-Host "VS Code executable not found:"
+        Write-Host "  $vscode"
+        Write-Host "Macro was created, but VS Code was not opened."
+    }
+
+    # ----------------------------- GIT STAGE ONLY -----------------------------
+
+    try {
+        Set-Location $workspaceRoot
+
+        $gitCheck = git rev-parse --is-inside-work-tree 2>$null
+
+        if ($LASTEXITCODE -eq 0 -and $gitCheck -eq "true") {
+            git add "$folderPath"
+
+            Write-Host ""
+            Write-Host "Git:"
+            Write-Host "  New macro folder staged."
+            Write-Host "  Review before committing."
+        }
+        else {
+            Write-Host ""
+            Write-Host "Git:"
+            Write-Host "  $workspaceRoot is not inside a Git repository."
+            Write-Host "  Skipping git add."
+        }
+    }
+    catch {
+        Write-Host ""
+        Write-Host "Git:"
+        Write-Host "  Git staging failed or Git is not available."
+        Write-Host "  You can add/commit manually later."
+    }
+
+    Write-Host ""
+    Write-Host "Done."
 }
 catch {
-    Write-Host "Git operation failed. You may need to commit manually."
+    Write-Host ""
+    Write-Host "ERROR:"
+    Write-Host $_.Exception.Message
+    Write-Host ""
+    Write-Host "Script stopped before completing."
+    Write-Host ""
+    Read-Host "Press Enter to close"
+    exit 1
 }
+
+Read-Host "Press Enter to close"

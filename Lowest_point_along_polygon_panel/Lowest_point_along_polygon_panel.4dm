@@ -30,8 +30,8 @@
 #define BUILD "15.0.001"
  
 // ----------------------------- INCLUDES -----------------------------
-#include "..\\..\\include/standard_library.H"
-#include "..\\..\\include/size_of.H"
+#include "standard_library.H"
+#include "size_of.H"
 /*global variables*/{
 Real minZ = 1.0e99;  Real minX = 0.0, minY = 0.0; Text minName = "";
 Real maxZ = -1.0e99; Real maxX = 0.0, maxY = 0.0; Text maxName = "";
@@ -240,7 +240,7 @@ void mainPanel(){
                                 for (Integer vi = 1; vi <= nvert; vi++)
                                 {
                                     Real x, y, z;
-                                    if (Get_3d_data(e3d, vi, x, y, z) != 0) continue;     // §5.53
+                                    if (Get_super_vertex_coord(e3d, vi, x, y, z) != 0) continue;  // V15 Super string call
 
                                     if (z < minZ)
                                     {

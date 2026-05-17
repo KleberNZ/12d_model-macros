@@ -27,8 +27,8 @@
 #define BUILD "15.C1t"
  
 // ----------------------------- INCLUDES -----------------------------
-#include "..\\..\\include/standard_library.H"
-#include "..\\..\\include/size_of.H"
+#include "standard_library.H"
+#include "size_of.H"
 /*global variables*/{
 
 }

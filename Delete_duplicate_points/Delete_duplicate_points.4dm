@@ -32,8 +32,8 @@
 #define BUILD "1.0.001"
  
 // ----------------------------- INCLUDES -----------------------------
-#include "..\\..\\include\standard_library.H"
-#include "..\\..\\include\size_of.H"
+#include "standard_library.H"
+#include "size_of.H"
 /*global variables*/{
 
 
@@ -141,9 +141,9 @@ void main(){
 #define ECHO_LINE_NO    0
 
 // ----------------------------- INCLUDES -----------------------------
-#include "..\\..\\include\\standard_library.H"
-#include "..\\..\\include\\size_of.H"
-#include "..\\..\\include\\QSort.h"
+#include "\standard_library.H"
+#include "\size_of.H"
+#include "\QSort.h"
 
 /*global variables*/
 Real get_length( Real x1 , Real x2, Real y1, Real y2 )

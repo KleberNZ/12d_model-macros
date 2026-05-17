@@ -77,8 +77,8 @@
 #define ECHO_LINE_NO    0
 #define BUILD "15.0.001"
 
-#include "..\\..\\include/standard_library.H"
-#include "..\\..\\include/size_of.H"
+#include "standard_library.H"
+#include "size_of.H"
 
 // ------------------------------------------------------------
 // LOG HELPERS

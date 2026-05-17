@@ -65,8 +65,8 @@
 #define BUILD "version.0.001"
  
 // ----------------------------- INCLUDES -----------------------------
-#include "..\\..\\include/standard_library.H"
-#include "..\\..\\include/size_of.H"
+#include "standard_library.H"
+#include "size_of.H"
 
 /*global variables*/{
 #define XY_TOL 0.1         // tolerance for matching XY corners
@@ -430,7 +430,7 @@ void mainPanel(){
                                 for (Integer vi = 1; vi <= nvert; vi++)
                                 {
                                     Real x, y, z;
-                                    if (Get_3d_data(e3d, vi, x, y, z) != 0) continue;     // §5.53
+                                    if (Get_super_vertex_coord(e3d, vi, x, y, z) != 0) continue;     // §5.53
 
                                     if (z < minZ)
                                     {

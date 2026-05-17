@@ -21,9 +21,9 @@
 #define BUILD "version.0.002"
 
 // ----------------------------- INCLUDES -----------------------------
-#include "..\\..\\include/standard_library.H"
-#include "..\\..\\include/size_of.H"
-#include "..\\..\\include/set_ups.h"
+#include "standard_library.H"
+#include "size_of.H"
+#include "set_ups.h"
 
 //MACRO UPDATES LID LEVEL. not sump or pipes
 /*global variables*/{

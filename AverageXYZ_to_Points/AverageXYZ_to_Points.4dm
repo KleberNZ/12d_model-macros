@@ -22,9 +22,9 @@
 #define BUILD "version.0.001"
 
 // ----------------------------- INCLUDES -----------------------------
-#include "..\\..\\include\\standard_library.H"
-#include "..\\..\\include\\size_of.H"
-#include "..\\..\\include\\set_ups.h"
+#include "standard_library.H"
+#include "size_of.H"
+#include "set_ups.h"
 
 
 // ----------------------------- HELPERS ------------------------------
@@ -146,27 +146,42 @@ void mainPanel()
             if(npt<1)
             { Print("Skip " + To_text(i) + ": no vertices"); continue; }
 
-            // read XYZ
-            Real x[npt], y[npt], z[npt];
+            // read XYZ using V15 Super string calls
             Integer got=0;
-            Integer gret = Get_3d_data(e, x, y, z, npt, got);   // returns 0 on success
-            if(gret!=0 || got<1)
-            { Print("Skip " + To_text(i) + ": no 3D data"); continue; }
-
-            // average
             Integer k;
             Real sx=0.0, sy=0.0, sz=0.0;
-            for(k=1;k<=got;k++){ sx+=x[k]; sy+=y[k]; sz+=z[k]; }
-                Real inv = 1.0 / got;          // got is Integer; promoted to Real
-                Real ax = sx * inv;
-                Real ay = sy * inv;
-                Real az = sz * inv;
 
+            for(k=1;k<=npt;k++)
+            {
+              Real vx=0.0, vy=0.0, vz=0.0;
+              Integer gret = Get_super_vertex_coord(e, k, vx, vy, vz);
+              if(gret==0)
+              {
+                sx += vx;
+                sy += vy;
+                sz += vz;
+                got++;
+              }
+            }
 
-            // create 1-vertex 3D element
-            Real px[1], py[1], pz[1];
-            px[1]=ax; py[1]=ay; pz[1]=az;
-            Element pt = Create_3d(px,py,pz,1);
+            if(got<1)
+            { Print("Skip " + To_text(i) + ": no Super string XYZ data"); continue; }
+
+            // average
+            Real inv = 1.0 / got;          // got is Integer; promoted to Real
+            Real ax = sx * inv;
+            Real ay = sy * inv;
+            Real az = sz * inv;
+
+            // create 1-vertex Super element with Z coordinate
+            Integer superFlags = String_Super_Bit(ZCoord_Array);
+            Element pt = Create_super(superFlags, 1);
+            if(Element_exists(pt)!=1)
+            { Print("Skip " + To_text(i) + ": failed to create point"); continue; }
+
+            if(Set_super_vertex_coord(pt, 1, ax, ay, az)!=0)
+            { Print("Skip " + To_text(i) + ": failed to set point coordinate"); continue; }
+
             Text pname = "pt" + To_text(i);
             Set_name(pt, pname);
             if(Set_model(pt, outModel)!=0)

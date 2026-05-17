@@ -37,9 +37,9 @@
 #define BUILD            "version.0.001"
 
 // ---------------------------- INCLUDES ----------------------------
-#include "..\\..\\include/standard_library.H"
-#include "..\\..\\include/size_of.H"
-#include "..\\..\\include/set_ups.h"     // Model_Box modes (e.g. CHECK_MODEL_MUST_EXIST)
+#include "standard_library.H"
+#include "size_of.H"
+#include "set_ups.h"     // Model_Box modes (e.g. CHECK_MODEL_MUST_EXIST)
 
 /*global variables*/{
 }
