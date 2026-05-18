@@ -39,5 +39,6 @@ TEST.4DM
 *BACKUP*
 *backup*
 
-# ps1 files
-.ps1
+# PowerShell local/temp scripts
+*.local.ps1
+*.tmp.ps1
