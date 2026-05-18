@@ -29,12 +29,56 @@ C:\12d\includes
 Important distinction:
 
 ```text
-C:\12d\12dPL_Data       = central VS Code workspace
-C:\12d\12dPL_Data\Code  = Git repo for macro source files
-C:\12d\includes         = shared include files
+C:\12d\12dPL_Data                                = central VS Code workspace
+C:\12d\12dPL_Data\Code                           = Git repo for macro source files
+C:\12d\12dPL_Data\12d Model Programmer Custom GPT = reference / Custom GPT knowledge workspace
+C:\12d\includes                                  = shared include files
 ```
 
 ---
+
+## Reference Knowledge Workspace
+
+The macro source repository is:
+
+```text
+C:\12d\12dPL_Data\Code
+````
+
+The separate 12dPL reference / Custom GPT workspace is:
+
+```text
+C:\12d\12dPL_Data\12d Model Programmer Custom GPT
+```
+
+This reference workspace contains supporting material for 12dPL macro generation, debugging, and validation, including:
+
+* manuals and extracted manual text;
+* prototype/function signature databases;
+* symbol/reference databases;
+* approved scaffolds;
+* approved snippets;
+* lookup indexes;
+* macro assistant instructions and policy files.
+
+Important files in the reference workspace include:
+
+```text
+AGENTS.md
+README.md
+WORKSPACE_INVENTORY.md
+12dPL MACRO ASSISTANT SPECIFICATION.md
+macro_structure.md
+Instructions.md
+INTERNET LOOKUP POLICY - FALLBACK ONLY.md
+```
+
+Use the reference workspace as read-only guidance by default.
+
+Do not copy the full reference workspace into this macro source repo.
+
+Do not commit manuals, indexes, databases, archived files, or generated reference assets into this repo unless deliberately reviewed.
+
 
 ## Overview
 
