@@ -8,7 +8,7 @@
 #   <macro_name>.4dm
 #   README.md
 #
-# Opens VS Code using the central workspace:
+# Opens the normal installed VS Code using the central workspace:
 #   C:\12d\12dPL_Data
 #
 # Does NOT create individual .code-workspace files.
@@ -21,10 +21,12 @@ try {
 
     $workspaceRoot = "C:\12d\12dPL_Data"
     $codeRoot      = Join-Path $workspaceRoot "Code"
-    $includeRoot   = Join-Path $workspaceRoot "include"
+    $includeRoot   = "C:\12d\includes"
 
-    $vscode  = "C:\12d\VSCode-12dPL\Code.exe"
-    $profile = "12dPL"
+    # Use the normal VS Code command installed on PATH.
+    # This avoids relying on the old portable VS Code folder:
+    #   C:\12d\VSCode-12dPL\Code.exe
+    $vscodeCommand = "code"
 
     # ----------------------------- PRE-CHECKS -----------------------------
 
@@ -50,6 +52,15 @@ try {
 
     if (-not (Test-Path $sizeOfHeader)) {
         throw "Missing include file: $sizeOfHeader"
+    }
+
+    $vscode = Get-Command $vscodeCommand -ErrorAction SilentlyContinue
+
+    if (-not $vscode) {
+        Write-Host "WARNING:"
+        Write-Host "  VS Code command '$vscodeCommand' was not found on PATH."
+        Write-Host "  The macro can still be created, but VS Code will not be opened automatically."
+        Write-Host ""
     }
 
     # ----------------------------- USER INPUT -----------------------------
@@ -108,7 +119,7 @@ try {
 
     # ----------------------------- CREATE MACRO TEMPLATE -----------------------------
 
-	$macroContent = @"
+    $macroContent = @"
 /*---------------------------------------------------------------------
 **   Programmer:           KLP
 **   Date:                 $today
@@ -128,7 +139,7 @@ try {
 **   Update/Modification
 **
 **  This macro may be reproduced, modified and used without restriction.
-**  The author grants all users Unlimited Use of the source code and any 
+**  The author grants all users Unlimited Use of the source code and any
 **  associated files, for no fee. Unlimited Use includes compiling, running,
 **  and modifying the code for individual or integrated purposes.
 **  The author also grants 12d Solutions Pty Ltd and other users permission
@@ -138,19 +149,21 @@ try {
 #define DEBUG_FILE      0
 #define ECHO_DEBUG_FILE 0
 #define ECHO_LINE_NO    0
- 
+
 #define BUILD "version.0.001"
- 
+
 // ----------------------------- INCLUDES -----------------------------
-#include "standard_library.h"
+#include "standard_library.H"
 #include "size_of.h"
+
 /*global variables*/{
 
 
 }
+
 // ----------------------------- PANEL -----------------------------
 void mainPanel(){
- 
+
     Text panelName="PanelName";
     Panel              panel  = Create_panel              (panelName,TRUE);
     Vertical_Group     vgroup = Create_vertical_group     (-1         );
@@ -158,58 +171,63 @@ void mainPanel(){
 
     ///////////////////CREATE INPUT WIDGETS////////////////
     //TODO: create some input fields
-    
+
     ///////////////ADDING BUTTONS ALONG THE BOTTOM///////////////////////////
     Horizontal_Group bgroup = Create_button_group();
     Button process     = Create_button       ("&Process" ,"process");
     Button finish      = Create_finish_button("Finish"   ,"Finish" );
     Button help_button = Create_help_button  (panel      ,"Help"   );
-    Append(process      ,bgroup);
-    Append(finish       ,bgroup);
-    Append(help_button  ,bgroup);
+
+    Append(process     ,bgroup);
+    Append(finish      ,bgroup);
+    Append(help_button ,bgroup);
+
     ///////////////ADDING WIDGETS TO PANEL///////////////////////////
     //TODO: add your widgets to vgroup
 
     //Append(widget1    ,vgroup);
     //Append(widget2    ,vgroup);
 
-
-    Append(cmbMsg    ,vgroup);
-    Append(bgroup    ,vgroup);
-
+    Append(cmbMsg      ,vgroup);
+    Append(bgroup      ,vgroup);
 
     Append(vgroup,panel);
     Show_widget(panel);
-	// ----------------------------- EVENT LOOP -----------------------------
+
+    // ----------------------------- EVENT LOOP -----------------------------
     Integer doit = 1;
+
     while(doit)
     {
         Text cmd="",msg = "";
         Integer id,ret = Wait_on_widgets(id,cmd,msg);
- 
+
         switch(cmd)
         {
         case "keystroke" :
-        case "set_focus"  :
+        case "set_focus" :
         case "kill_focus" :
         {
             continue;
         }
         break;
+
         case "CodeShutdown" :
         {
             Set_exit_code(cmd);
         }
         break;
         }
+
         switch(id)
         {
         case Get_id(panel) :
         {
-            if(cmd == "Panel Quit") doit = 0;
+            if(cmd == "Panel Quit")  doit = 0;
             if(cmd == "Panel About") about_panel(panel);
         }
-        break; 
+        break;
+
         case Get_id(process) :
         {
             if(cmd == "process")
@@ -222,9 +240,7 @@ void mainPanel(){
 
 
 
-
                 //TODO: do calc
-
 
 
 
@@ -232,19 +248,20 @@ void mainPanel(){
             }
         }
         break;
+
         default :
         {
-            if(cmd == "Finish")doit = 0;
+            if(cmd == "Finish") doit = 0;
         }
-        break; 
+        break;
         }
     }
 }
+
 // ----------------------------- MAIN -----------------------------
 void main(){
 
-    // do some checks before you go to the main panel
-
+    //TODO: do pre-panel checks here
 
     mainPanel();
 }
@@ -292,7 +309,7 @@ This macro uses clean includes:
 
 These rely on the central workspace setting:
 
-12dpl.compiler.includePaths = C:\12d\12dPL_Data\include
+12dpl.compiler.includePaths = C:\12d\includes
 
 ## Inputs
 
@@ -329,38 +346,38 @@ TODO: Add implementation notes, assumptions, limitations, and testing notes.
 
     # ----------------------------- OPEN VS CODE -----------------------------
 
-    if (Test-Path $vscode) {
+    if ($vscode) {
         Write-Host "Opening VS Code central workspace:"
         Write-Host "  $workspaceRoot"
         Write-Host ""
 
-        Start-Process $vscode -ArgumentList "--profile", $profile, "`"$workspaceRoot`"", "`"$macroPath`""
+        Start-Process -FilePath $vscode.Source -ArgumentList @(
+            "$workspaceRoot",
+            "$macroPath"
+        )
     }
     else {
-        Write-Host "VS Code executable not found:"
-        Write-Host "  $vscode"
-        Write-Host "Macro was created, but VS Code was not opened."
+        Write-Host "VS Code was not opened because the 'code' command was not found."
     }
 
     # ----------------------------- GIT STAGE ONLY -----------------------------
 
     try {
-        Set-Location $workspaceRoot
-
-        $gitCheck = git rev-parse --is-inside-work-tree 2>$null
+        $gitCheck = git -C $codeRoot rev-parse --is-inside-work-tree 2>$null
 
         if ($LASTEXITCODE -eq 0 -and $gitCheck -eq "true") {
-            git add "$folderPath"
+            git -C $codeRoot add -- "$folderPath"
 
             Write-Host ""
             Write-Host "Git:"
-            Write-Host "  New macro folder staged."
+            Write-Host "  New macro folder staged in repo:"
+            Write-Host "  $codeRoot"
             Write-Host "  Review before committing."
         }
         else {
             Write-Host ""
             Write-Host "Git:"
-            Write-Host "  $workspaceRoot is not inside a Git repository."
+            Write-Host "  $codeRoot is not inside a Git repository."
             Write-Host "  Skipping git add."
         }
     }
