@@ -42,8 +42,8 @@
 **---------------------------------------------------------------------*/
 #define BUILD "V15.0.001"
 
-#include "standard_library.H"
-#include "size_of.H"
+#include "standard_library.h"
+#include "size_of.h"
 
 /*global variables*/{
   /* ============================ Limits ============================ */

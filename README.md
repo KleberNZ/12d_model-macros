@@ -123,6 +123,7 @@ Compiled outputs are build artifacts and must not be committed.
    ```text
    C:\12d\12dPL_Data
    ```
+   > **Important:** Always open `C:\12d\12dPL_Data` as the VS Code workspace root when editing and compiling 12dPL macros. The workspace-level `.vscode/settings.json` provides the 12dPL compiler path, include path, file association, and default compiler flags. Opening an individual macro folder directly may cause include files such as `standard_library.h` and `size_of.h` to fail during compile.
 
 4. Edit the `.4dm` file in VS Code.
 
@@ -155,6 +156,8 @@ Workspace settings are stored at:
 C:\12d\12dPL_Data\.vscode\settings.json
 ```
 
+These settings only apply reliably when `C:\12d\12dPL_Data` is opened as the VS Code workspace root.
+
 Expected settings:
 
 ```json
@@ -167,7 +170,7 @@ Expected settings:
         "C:\\12d\\includes"
     ],
     "12dpl.compiler.defaultFlags": [
-        "-allow_internals",
+        "-allow_id_calls",
         "-allow_old_calls"
     ]
 }
