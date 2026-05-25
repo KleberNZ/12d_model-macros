@@ -1,8 +1,8 @@
 /*---------------------------------------------------------------------
 **   Programmer:           KLP
-**   Date:                 2026-05-19
+**   Date:                 2026-05-25
 **   12D Model:            V15
-**   Version:              001
+**   Version:              002
 **   Macro Name:           Read_Data_&_Transform_CRS_panel.4dm
 **   Type:                 SOURCE
 **
@@ -33,7 +33,7 @@
 #define ECHO_DEBUG_FILE 0
 #define ECHO_LINE_NO    0
 
-#define BUILD "version.0.001"
+#define BUILD "version.15.0C1t"
 
 // ----------------------------- INCLUDES -----------------------------
 #include "standard_library.H"
@@ -76,43 +76,96 @@ Text Get_AsBuilt_Model_Prefix(Text dataType)
     return modelPrefix;
 }
 
-// helper: runs converted-chain DWG/DXF read panel with data-type settings
-Integer Read_DWG_DXF_Data(Text dataType,Text &run_slf_error)
+// helper: returns as-built mapfile for selected data type
+Text Get_AsBuilt_Map_File(Text dataType)
 {
     Text mapFile = "";
-    Text modelPrefix = "";
 
     if(dataType == "EARTHWORKS") {
         mapFile = "AB EARTHWORKS.mapfile";
-        modelPrefix = "EARTHWORKS/";
     }
     else if(dataType == "ROADING") {
         mapFile = "AB ROADING.mapfile";
-        modelPrefix = "ROADING/";
     }
     else if(dataType == "STORMWATER") {
         mapFile = "AB STORMWATER.mapfile";
-        modelPrefix = "STORMWATER/";
     }
     else if(dataType == "WASTEWATER") {
         mapFile = "AB WASTEWATER.mapfile";
-        modelPrefix = "WASTEWATER/";
     }
     else if(dataType == "WATERMAIN") {
         mapFile = "AB WATERMAIN.mapfile";
-        modelPrefix = "WATERMAIN/";
     }
     else if(dataType == "ELECTRICAL") {
         mapFile = "AB ELECTRICAL.mapfile";
-        modelPrefix = "ELECTRICAL/";
     }
     else if(dataType == "TELECOM") {
         mapFile = "AB TELECOM.mapfile";
-        modelPrefix = "TELECOM/";
     }
-    else {
+
+    return mapFile;
+}
+
+// helper: ensures selected as-built mapfile exists in current working/project folder
+Integer Ensure_AsBuilt_Map_File_Available(Text mapFile,Text &error)
+{
+    error = "";
+
+    if(mapFile == "") {
+        error = "Map file name is blank.";
+        return -1;
+    }
+
+    // Signature: Integer File_exists(Text file_name)
+    if(File_exists(mapFile)) {
+        return 0;
+    }
+
+    Text sourceFolder = "F:\\DATA\\12d\\User_Lib (ASBUILT)\\"; 
+    Text sourceFile = sourceFolder;
+    sourceFile += mapFile;
+
+    if(!File_exists(sourceFile)) {
+        error = "Required mapfile is missing from source folder: ";
+        error += sourceFile;
+        return -2;
+    }
+
+    // Signature: Integer File_copy(Text new_name,Text old_name)
+    Integer copyRet = File_copy(mapFile,sourceFile);
+
+    if(copyRet != 0) {
+        error = "Could not copy required mapfile from: ";
+        error += sourceFile;
+        error += " to current folder as: ";
+        error += mapFile;
+        return copyRet;
+    }
+
+    if(!File_exists(mapFile)) {
+        error = "Mapfile copy completed but target file is still missing: ";
+        error += mapFile;
+        return -3;
+    }
+
+    return 0;
+}
+
+// helper: runs converted-chain DWG/DXF read panel with data-type settings
+Integer Read_DWG_DXF_Data(Text dataType,Text &run_slf_error)
+{
+    Text mapFile = Get_AsBuilt_Map_File(dataType);
+    Text modelPrefix = Get_AsBuilt_Model_Prefix(dataType);
+
+    if(mapFile == "" || modelPrefix == "") {
         run_slf_error = "Unsupported data type.";
         return -99;
+    }
+
+    Integer mapCheck = Ensure_AsBuilt_Map_File_Available(mapFile,run_slf_error);
+
+    if(mapCheck != 0) {
+        return mapCheck;
     }
 
     Text buffer;
@@ -269,40 +322,18 @@ Integer Read_DWG_DXF_Data(Text dataType,Text &run_slf_error)
 // helper: runs converted-chain 12d Solutions Data read panel with data-type settings
 Integer Read_12d_Solutions_Data(Text dataType,Text &run_slf_error)
 {
-    Text mapFile = "";
-    Text modelPrefix = "";
+    Text mapFile = Get_AsBuilt_Map_File(dataType);
+    Text modelPrefix = Get_AsBuilt_Model_Prefix(dataType);
 
-    if(dataType == "EARTHWORKS") {
-        mapFile = "AB EARTHWORKS.mapfile";
-        modelPrefix = "EARTHWORKS/";
-    }
-    else if(dataType == "ROADING") {
-        mapFile = "AB ROADING.mapfile";
-        modelPrefix = "ROADING/";
-    }
-    else if(dataType == "STORMWATER") {
-        mapFile = "AB STORMWATER.mapfile";
-        modelPrefix = "STORMWATER/";
-    }
-    else if(dataType == "WASTEWATER") {
-        mapFile = "AB WASTEWATER.mapfile";
-        modelPrefix = "WASTEWATER/";
-    }
-        else if(dataType == "WATERMAIN") {
-        mapFile = "AB WATERMAIN.mapfile";
-        modelPrefix = "WATERMAIN/";
-    }
-        else if(dataType == "ELECTRICAL") {
-        mapFile = "AB ELECTRICAL.mapfile";
-        modelPrefix = "ELECTRICAL/";
-    }
-        else if(dataType == "TELECOM") {
-        mapFile = "AB TELECOM.mapfile";
-        modelPrefix = "TELECOM/";
-    }
-    else {
+    if(mapFile == "" || modelPrefix == "") {
         run_slf_error = "Unsupported data type.";
         return -99;
+    }
+
+    Integer mapCheck = Ensure_AsBuilt_Map_File_Available(mapFile,run_slf_error);
+
+    if(mapCheck != 0) {
+        return mapCheck;
     }
 
     Text buffer;
@@ -441,51 +472,92 @@ Integer Read_12d_Solutions_Data(Text dataType,Text &run_slf_error)
     return res;
 }
 
-// helper: checks DATA IMPORT view exists, maximizes it, then returns status
-Integer Show_DATA_IMPORT_View(Text &error)
+// helper: ensures a named plan view exists
+Integer Ensure_View_Exists(Text viewName,Text &error)
 {
-    Text viewName = "DATA IMPORT";
+    error = "";
 
-    // Signature: Integer View_exists(Text)
-    if(!View_exists(viewName)) {
-        error = "View does not exist: DATA IMPORT";
+    if(viewName == "") {
+        error = "View name is blank.";
         return -1;
     }
 
-    // Signature: View Get_view(Text vname)
-    View dataImportView = Get_view(viewName);
+    // Signature: Integer View_exists(Text)
+    if(View_exists(viewName)) {
+        return 0;
+    }
 
-    // Signature: Integer View_maximize(View v)
-    Integer maxRet = View_maximize(dataImportView);
+    // Signature: Integer View_create(Integer type,Text name,Integer left,Integer top,Integer width,Integer height,Integer engine_type)
+    Integer createRet = View_create(0,viewName,100,100,900,700,1);
 
-    if(maxRet != 0) {
-        error = "Could not maximize DATA IMPORT view.";
-        return maxRet;
+    if(createRet != 0) {
+        error = "Could not create view: ";
+        error += viewName;
+        return createRet;
+    }
+
+    if(!View_exists(viewName)) {
+        error = "View still missing after create: ";
+        error += viewName;
+        return -2;
     }
 
     return 0;
 }
 
-// helper: checks DATA IMPORT view exists, then minimizes it
-Integer Minimize_DATA_IMPORT_View(Text &error)
+// helper: sets named view state
+Integer Set_View_State(Text viewName,Text viewState,Text &error)
 {
-    Text viewName = "DATA IMPORT";
+    error = "";
 
-    if(!View_exists(viewName)) {
-        error = "View does not exist: DATA IMPORT";
-        return -1;
+    Integer ensureRet = Ensure_View_Exists(viewName,error);
+
+    if(ensureRet != 0) {
+        return ensureRet;
     }
 
-    View dataImportView = Get_view(viewName);
+    // Signature: View Get_view(Text vname)
+    View view = Get_view(viewName);
 
-    Integer minRet = View_minimize(dataImportView);
+    Integer ret = 0;
 
-    if(minRet != 0) {
-        error = "Could not minimize DATA IMPORT view.";
-        return minRet;
+    if(viewState == "restore") {
+        // Signature: Integer View_restore(View v)
+        ret = View_restore(view);
+    }
+    else if(viewState == "minimize") {
+        // Signature: Integer View_minimize(View v)
+        ret = View_minimize(view);
+    }
+    else if(viewState == "maximize") {
+        // Signature: Integer View_maximize(View v)
+        ret = View_maximize(view);
+    }
+    else {
+        error = "Unknown view state: ";
+        error += viewState;
+        return -3;
+    }
+
+    if(ret != 0) {
+        error = "Could not set view state for: ";
+        error += viewName;
+        return ret;
     }
 
     return 0;
+}
+
+// Maximize DATA IMPORT view so users can review imported data
+Integer Show_DATA_IMPORT_View(Text &error)
+{
+    return Set_View_State("DATA IMPORT","maximize",error);
+}
+
+// Minimize DATA IMPORT view after user approved or rejected data imported
+Integer Minimize_DATA_IMPORT_View(Text &error)
+{
+    return Set_View_State("DATA IMPORT","minimize",error);
 }
 
 // helper: deletes all elements currently shown in DATA IMPORT view
@@ -536,20 +608,6 @@ Integer Delete_DATA_IMPORT_Elements(Integer &deletedCount,Text &error)
     }
 
     return 0;
-}
-
-// helper: returns TRUE when a tick box text value means ON
-Integer Is_Tick_On(Text tickValue)
-{
-    if(tickValue == "true") return TRUE;
-    if(tickValue == "TRUE") return TRUE;
-    if(tickValue == "1") return TRUE;
-    if(tickValue == "yes") return TRUE;
-    if(tickValue == "Yes") return TRUE;
-    if(tickValue == "on") return TRUE;
-    if(tickValue == "ON") return TRUE;
-
-    return FALSE;
 }
 
 // helper: transforms DATA IMPORT from selected NZ2000 circuit to NZTM2000
@@ -871,32 +929,10 @@ Integer Approval_Panel(Text &decision)
     return 0;
 }
 
-// helper: maximizes target view matching selected data type
+// helper: restores target view matching selected data type
 Integer Show_Target_DataType_View(Text dataType,Text &error)
 {
-    Text viewName = dataType;
-
-    if(!View_exists(viewName)) {
-        Integer createRet = View_create(0,viewName,100,100,900,700,1);
-
-        if(createRet != 0 || !View_exists(viewName)) {
-            error = "Could not create view: ";
-            error += viewName;
-            return -1;
-        }
-    }
-
-    View targetView = Get_view(viewName);
-
-    Integer maxRet = View_maximize(targetView);
-
-    if(maxRet != 0) {
-        error = "Could not maximize view: ";
-        error += viewName;
-        return maxRet;
-    }
-
-    return 0;
+    return Set_View_State(dataType,"restore",error);
 }
 
 // helper: add non-empty prefixed models to target data type view
@@ -976,7 +1012,7 @@ Integer Finalise_Review_Views(Text dataType,Colour_Message_Box cmbMsg)
     Integer targetRet = Show_Target_DataType_View(dataType,targetErr);
 
     if(targetRet != 0) {
-        Text msg2 = "WARNING: target view maximise failed. ";
+        Text msg2 = "WARNING: target view restore failed. ";
         msg2 += targetErr;
         Set_data(cmbMsg,msg2);
         return targetRet;
@@ -1034,7 +1070,7 @@ void mainPanel(){
     Colour_Message_Box cmbMsg = Create_colour_message_box (""         );
 
     ///////////////////CREATE INPUT WIDGETS////////////////
-    //TODO: create some input fields
+    // create some input fields
 
     Choice_Box cbDataType = Create_choice_box("As-built data type",cmbMsg);
 
@@ -1117,7 +1153,7 @@ void mainPanel(){
     Append(help_button  ,bgroup);
 
     ///////////////ADDING WIDGETS TO PANEL///////////////////////////
-    //TODO: add your widgets to vgroup
+    // add your widgets to vgroup
 
     Append(cbDataType,vgroup);
     Append(cbDataFormat,vgroup);
@@ -1168,45 +1204,43 @@ void mainPanel(){
         {
             if(cmd == "process")
             {
-                //TODO: declare your widget variables
+                // declare your widget variables
 
-                Text dataType = "";
-                Text dataFormat = "";
                 Text run_slf_error = "";
                 Integer ok = TRUE;
 
-                //TODO: validate widgets
+                gDataType = "";
+                gDataFormat = "";
 
-                Get_data(cbDataType,dataType);
-                if(dataType == "") {
+                // validate widgets
+
+                Get_data(cbDataType,gDataType);
+                if(gDataType == "") {
                     Set_data(cmbMsg,"ERROR: Select an as-built data type.");
                     ok = FALSE;
                 }
                 if(ok) {
-                    Text defaultPrefix = Get_AsBuilt_Model_Prefix(dataType);
+                    Text defaultPrefix = Get_AsBuilt_Model_Prefix(gDataType);
                     if(defaultPrefix != "") {
                         Set_data(ipbTransformPrefix,defaultPrefix);
                     }
                 }
 
                 if(ok) {
-                    Get_data(cbDataFormat,dataFormat);
-                    if(dataFormat == "") {
+                    Get_data(cbDataFormat,gDataFormat);
+                    if(gDataFormat == "") {
                         Set_data(cmbMsg,"ERROR: Select a data format.");
                         ok = FALSE;
                     }
                 }
 
-                gDataType = dataType;
-                gDataFormat = dataFormat;
-
-                //TODO: do calc
+                // do calc
 
                 if(ok) {
-                    if(dataFormat == "DWG/DXF") {
+                    if(gDataFormat == "DWG/DXF") {
                         Set_data(cmbMsg,"Running DWG/DXF read panel...");
 
-                        Integer res = Read_DWG_DXF_Data(dataType,run_slf_error);
+                        Integer res = Read_DWG_DXF_Data(gDataType,run_slf_error);
 
                         if(res == 0) {
                             Set_data(cmbMsg,"DWG/DXF read panel launched. After reading data, click Review Import.");
@@ -1222,10 +1256,10 @@ void mainPanel(){
                             Set_data(cmbMsg,err);
                         }
                     }
-                    else if(dataFormat == "12d Solutions Data") {
+                    else if(gDataFormat == "12d Solutions Data") {
                         Set_data(cmbMsg,"Running 12d Solutions Data read panel...");
 
-                        Integer res12d = Read_12d_Solutions_Data(dataType,run_slf_error);
+                        Integer res12d = Read_12d_Solutions_Data(gDataType,run_slf_error);
 
                         if(res12d == 0) {
                             Set_data(cmbMsg,"12d Solutions Data read panel launched. After reading data, click Review Import.");
@@ -1267,13 +1301,13 @@ void mainPanel(){
                         Approval_Panel(decision);
 
                             if(decision == "Approve") {
-                                Text transformTick = "";
+                                Integer transformOn = FALSE;
                                 Text fromCircuit = "";
                                 Text movePrefix = "";
                                 Text verticalZText = "";
                                 Real verticalZ = 0.0;
 
-                                Get_data(ntbTransformToNZTM,transformTick);
+                                Validate(ntbTransformToNZTM,transformOn);
                                 Get_data(cbFromCircuit,fromCircuit);
                                 Get_data(ipbTransformPrefix,movePrefix);
                                 Get_data(rbVerticalTranslation,verticalZText);
@@ -1295,7 +1329,7 @@ void mainPanel(){
                                         terr += translateError;
                                         Set_data(cmbMsg,terr);
                                     }
-                                    else if(Is_Tick_On(transformTick)) {
+                                    else if(transformOn) {
                                         if(fromCircuit == "") {
                                             Set_data(cmbMsg,"ERROR: Select From NZ2000 circuit.");
                                         }
@@ -1319,7 +1353,7 @@ void mainPanel(){
 
                                                     Delete_Empty_Models(deletedModels,deleteError);
 
-                                                    Text doneMsg = "Vertical translation and NZTM2000 transformation completed. Target view maximized. Empty models deleted: ";
+                                                    Text doneMsg = "Vertical translation and NZTM2000 transformation completed. Empty models deleted: ";
                                                     doneMsg += To_text(deletedModels);
                                                     doneMsg += ". Models added to target view: ";
                                                     doneMsg += To_text(addedModels);
@@ -1355,8 +1389,7 @@ void mainPanel(){
 
                                             Delete_Empty_Models(deletedModels2,deleteError2);
 
-                                            Text doneMsg2 = "Prefix/vertical translation completed. NZTM2000 transformation skipped. Target view maximized. Empty models deleted: ";
-                                            doneMsg2 += To_text(deletedModels2);
+                                            Text doneMsg2 = "Prefix/vertical translation completed. NZTM2000 transformation skipped. Target view restored. Empty models deleted: ";
                                             doneMsg2 += ". Models added to target view: ";
                                             doneMsg2 += To_text(addedModels2);
 
@@ -1434,7 +1467,7 @@ void mainPanel(){
 // ----------------------------- MAIN -----------------------------
 void main(){
 
-    //TODO: do pre-panel checks here
+    // do pre-panel checks here
     
     mainPanel();
 }
