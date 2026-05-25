@@ -4,7 +4,7 @@
 **   Date:01/09/25
 **   12D Model:            V15
 **   Version:              001
-**   Macro Name:           Drainage_UpdaterV2.4dm
+**   Macro Name:           Drainage_Updater_panel.4dm
 **   Type:                 SOURCE
 **
 **   Brief description: Updates drainage model (Cover RL, Sump RL and Pipe Inverts) using points and 2-point data set.
@@ -180,7 +180,7 @@ Integer Count_model_elements(Model mdl, Integer &count)
 
 void mainPanel()
 {
-  Text panelName="Drainage_Updater_NEW";
+  Text panelName="Drainage_Updater";
   Panel              panel  = Create_panel              (panelName,TRUE);
   Vertical_Group     vgroup = Create_vertical_group     (-1);
   Colour_Message_Box cmbMsg = Create_colour_message_box ("");
