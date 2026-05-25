@@ -36,7 +36,7 @@
 #define BUILD "version.15.0C1t"
 
 // ----------------------------- INCLUDES -----------------------------
-#include "standard_library.H"
+#include "standard_library.h"
 #include "size_of.h"
 
 /*global variables*/{
@@ -1204,6 +1204,7 @@ void mainPanel(){
         {
             if(cmd == "process")
             {
+                Print("--- AsBuilt import Starts ---\n");
                 // declare your widget variables
 
                 Text run_slf_error = "";
@@ -1300,24 +1301,45 @@ void mainPanel(){
                         Text decision = "";
                         Approval_Panel(decision);
 
-                            if(decision == "Approve") {
-                                Integer transformOn = FALSE;
-                                Text fromCircuit = "";
-                                Text movePrefix = "";
-                                Text verticalZText = "";
-                                Real verticalZ = 0.0;
+                        if(decision == "Approve") {
+                            Integer transformOn = FALSE;
+                            Text fromCircuit = "";
+                            Text movePrefix = "";
+                            Text verticalZText = "";
+                            Real verticalZ = 0.0;
 
-                                Validate(ntbTransformToNZTM,transformOn);
-                                Get_data(cbFromCircuit,fromCircuit);
-                                Get_data(ipbTransformPrefix,movePrefix);
-                                Get_data(rbVerticalTranslation,verticalZText);
+                            Validate(ntbTransformToNZTM,transformOn);
+                            Get_data(cbFromCircuit,fromCircuit);
+                            Get_data(ipbTransformPrefix,movePrefix);
+                            Get_data(rbVerticalTranslation,verticalZText);
 
-                                From_text(verticalZText,verticalZ);
+                            From_text(verticalZText,verticalZ);
 
-                                if(movePrefix == "") {
-                                    Set_data(cmbMsg,"ERROR: Enter Move to model prefix.");
+                            if(movePrefix == "") {
+                                Set_data(cmbMsg,"ERROR: Enter Move to model prefix.");
+                            }
+                            else if(transformOn && fromCircuit == "") {
+                                Set_data(cmbMsg,"ERROR: Select From NZ2000 circuit.");
+                            }
+                            else {
+                                Integer proceedToTranslate = TRUE;
+
+                                if(transformOn) {
+                                    Text transformError = "";
+
+                                    Set_data(cmbMsg,"Transforming DATA IMPORT data to NZTM2000...");
+
+                                    Integer transformRet = Transform_DATA_IMPORT_To_NZTM2000(fromCircuit,"",transformError);
+
+                                    if(transformRet != 0) {
+                                        Text terr2 = "ERROR: Transformation failed. ";
+                                        terr2 += transformError;
+                                        Set_data(cmbMsg,terr2);
+                                        proceedToTranslate = FALSE;
+                                    }
                                 }
-                                else {
+
+                                if(proceedToTranslate) {
                                     Text translateError = "";
 
                                     Set_data(cmbMsg,"Applying model prefix and vertical translation...");
@@ -1329,83 +1351,46 @@ void mainPanel(){
                                         terr += translateError;
                                         Set_data(cmbMsg,terr);
                                     }
-                                    else if(transformOn) {
-                                        if(fromCircuit == "") {
-                                            Set_data(cmbMsg,"ERROR: Select From NZ2000 circuit.");
-                                        }
-                                        else {
-                                            Text transformError = "";
+                                    else {
+                                        Integer finalViewRet = Finalise_Review_Views(gDataType,cmbMsg);
 
-                                            Set_data(cmbMsg,"Transforming prefixed data to NZTM2000...");
+                                        if(finalViewRet == 0) {
+                                            Integer addedModels = 0;
+                                            Text addModelsError = "";
+                                            Integer addModelsRet = Add_Prefixed_Models_To_Target_View(gDataType,movePrefix,addedModels,addModelsError);
 
-                                            Integer transformRet = Transform_DATA_IMPORT_To_NZTM2000(fromCircuit,"",transformError);
+                                            Integer deletedModels = 0;
+                                            Text deleteError = "";
 
-                                            if(transformRet == 0) {
-                                                Integer finalViewRet = Finalise_Review_Views(gDataType,cmbMsg);
+                                            Delete_Empty_Models(deletedModels,deleteError);
 
-                                                if(finalViewRet == 0) {
-                                                    Integer addedModels = 0;
-                                                    Text addModelsError = "";
-                                                    Integer addModelsRet = Add_Prefixed_Models_To_Target_View(gDataType,movePrefix,addedModels,addModelsError);
+                                            Text doneMsg = "";
 
-                                                    Integer deletedModels = 0;
-                                                    Text deleteError = "";
-
-                                                    Delete_Empty_Models(deletedModels,deleteError);
-
-                                                    Text doneMsg = "Vertical translation and NZTM2000 transformation completed. Empty models deleted: ";
-                                                    doneMsg += To_text(deletedModels);
-                                                    doneMsg += ". Models added to target view: ";
-                                                    doneMsg += To_text(addedModels);
-
-                                                    if(addModelsRet != 0) {
-                                                        doneMsg += ". WARNING: add models to target view failed: ";
-                                                        doneMsg += addModelsError;
-                                                    }
-
-                                                    Set_data(cmbMsg,doneMsg);
-                                                }
-                                                else {
-                                                    Set_data(cmbMsg,"Transformation completed, but final view handling failed.");
-                                                }
+                                            if(transformOn) {
+                                                doneMsg = "NZTM2000 transformation and prefix/vertical translation completed. Target view restored. Empty models deleted: ";
                                             }
                                             else {
-                                                Text terr2 = "ERROR: Transformation failed. ";
-                                                terr2 += transformError;
-                                                Set_data(cmbMsg,terr2);
-                                            }
-                                        }
-                                    }
-                                    else {
-                                        Integer finalViewRet2 = Finalise_Review_Views(gDataType,cmbMsg);
-
-                                        if(finalViewRet2 == 0) {
-                                            Integer addedModels2 = 0;
-                                            Text addModelsError2 = "";
-                                            Integer addModelsRet2 = Add_Prefixed_Models_To_Target_View(gDataType,movePrefix,addedModels2,addModelsError2);
-
-                                            Integer deletedModels2 = 0;
-                                            Text deleteError2 = "";
-
-                                            Delete_Empty_Models(deletedModels2,deleteError2);
-
-                                            Text doneMsg2 = "Prefix/vertical translation completed. NZTM2000 transformation skipped. Target view restored. Empty models deleted: ";
-                                            doneMsg2 += ". Models added to target view: ";
-                                            doneMsg2 += To_text(addedModels2);
-
-                                            if(addModelsRet2 != 0) {
-                                                doneMsg2 += ". WARNING: add models to target view failed: ";
-                                                doneMsg2 += addModelsError2;
+                                                doneMsg = "Prefix/vertical translation completed. NZTM2000 transformation skipped. Target view restored. Empty models deleted: ";
                                             }
 
-                                            Set_data(cmbMsg,doneMsg2);
+                                            doneMsg += To_text(deletedModels);
+                                            doneMsg += ". Models added to target view: ";
+                                            doneMsg += To_text(addedModels);
+
+                                            if(addModelsRet != 0) {
+                                                doneMsg += ". WARNING: add models to target view failed: ";
+                                                doneMsg += addModelsError;
+                                            }
+
+                                            Set_data(cmbMsg,doneMsg);
                                         }
                                         else {
-                                            Set_data(cmbMsg,"Prefix/vertical translation completed, but final view handling failed.");
+                                            Set_data(cmbMsg,"Approval completed, but final view handling failed.");
                                         }
                                     }
                                 }
                             }
+                        }
                         else if(decision == "Undo import") {
                             Integer deletedImportElements = 0;
                             Text deleteImportError = "";
