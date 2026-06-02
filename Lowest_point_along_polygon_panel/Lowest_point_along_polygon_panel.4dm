@@ -68,7 +68,7 @@ void mainPanel(){
     Log_Box            lb = Create_log_box("Results",700, 260);
 
     ///////////////////CREATE INPUT WIDGETS////////////////
-    //TODO: create some input fields
+    // create some input fields
     Source_Box         sb_polys = Create_source_box(" of polygons",cmbMsg,0);
     Named_Tick_Box     ntb_low = Create_named_tick_box("Use lowest Z from TIN",FALSE,"");
     Named_Tick_Box     ntb_high = Create_named_tick_box("Use highest Z from TIN",FALSE,"");
@@ -82,7 +82,7 @@ void mainPanel(){
     Append(finish       ,bgroup);
     Append(help_button  ,bgroup);
     ///////////////ADDING WIDGETS TO PANEL///////////////////////////
-    //TODO: add your widgets to vgroup
+    // add your widgets to vgroup
     Append(sb_polys   ,vgroup);
     Append(ntb_low   ,vgroup);
     Append(ntb_high   ,vgroup);
@@ -167,7 +167,7 @@ void mainPanel(){
         {
             if(cmd == "process")
             {
-                //TODO: validate widgets
+                // validate widgets
                 Clear(lb);
                 
                 // Validate Source_Box → Dynamic_Element list
@@ -190,7 +190,7 @@ void mainPanel(){
                 Text tmp_name = "TEMP DRAPED LOWEST POLYGONS";
                 Model tmp = Get_model_create(tmp_name); // create temp model
 
-                //TODO: do calc
+                // do calc
                 Integer made = 0, skipped = 0;
                 for(Integer i=1; i<= n2d; i++)
                     {

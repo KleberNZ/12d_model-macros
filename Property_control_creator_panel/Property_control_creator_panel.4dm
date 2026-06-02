@@ -220,7 +220,7 @@ void mainPanel(){
     Colour_Message_Box cmbMsg = Create_colour_message_box (""         );
 
     ///////////////////CREATE INPUT WIDGETS////////////////
-    //TODO: create some input fields
+    // create some input fields
     Source_Box          sb_bdys2d   = Create_source_box("of 2D lot boundaries",cmbMsg,0);
     Choice_Box          cb_drape    = Create_choice_box("Drape Polygons?",cmbMsg);
     Tin_Box             tb_surface  = Create_tin_box("TIN for draping polygons",cmbMsg,CHECK_TIN_MUST_EXIST);
@@ -248,7 +248,7 @@ void mainPanel(){
     choices[3] = "Lowest TIN z";
     Set_data(cb_drape, 3, choices);
     ///////////////ADDING WIDGETS TO PANEL///////////////////////////
-    //TODO: add your widgets to vgroup
+    // add your widgets to vgroup
 
     Append(sb_bdys2d    ,vgroup);
     Append(cb_drape     ,vgroup);

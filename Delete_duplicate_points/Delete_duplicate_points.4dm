@@ -47,7 +47,7 @@ void mainPanel(){
     Colour_Message_Box cmbMsg = Create_colour_message_box (""         );
 
     ///////////////////CREATE INPUT WIDGETS////////////////
-    //TODO: create some input fields
+    // create some input fields
     
     ///////////////ADDING BUTTONS ALONG THE BOTTOM///////////////////////////
     Horizontal_Group bgroup = Create_button_group();
@@ -58,7 +58,7 @@ void mainPanel(){
     Append(finish       ,bgroup);
     Append(help_button  ,bgroup);
     ///////////////ADDING WIDGETS TO PANEL///////////////////////////
-    //TODO: add your widgets to vgroup
+    // add your widgets to vgroup
 
     //Append(widget1    ,vgroup);
     //Append(widget2    ,vgroup);
@@ -103,16 +103,16 @@ void mainPanel(){
         {
             if(cmd == "process")
             {
-                //TODO: declare your widget variables
+                // declare your widget variables
 
 
 
-                //TODO: validate widgets
+                // validate widgets
 
 
 
 
-                //TODO: do calc
+                // do calc
 
 
 

@@ -164,7 +164,7 @@ void mainPanel(){
             if(cmd == "process")
             {
                 Print("Processing...");
-                //TODO: declare your widget variables
+                // declare your widget variables
                 Text pit_type="", super_type="";
                 if(Get_type(pit,pit_type)!=0 || pit_type!="Drainage")
                 { Set_data(cmbMsg,"Select a valid Drainage first"); break; }
@@ -173,7 +173,7 @@ void mainPanel(){
                 { Set_data(cmbMsg,"Select a valid Super first"); break; }
 
 
-                //TODO: do calc
+                // do calc
                 Integer pit_no = 2;   // ASSUMPTION: cesspit is the 2nd pit in drainage string
 
                 Text pit_name = "";

@@ -411,7 +411,7 @@ void mainPanel(){
         {
             if(cmd == "process")
             {
-                // TODO: do calc
+                //  do calc
                 Clear(lb_results);
                 Text prop_model_name = "";
                 Text main_model_name = "";
