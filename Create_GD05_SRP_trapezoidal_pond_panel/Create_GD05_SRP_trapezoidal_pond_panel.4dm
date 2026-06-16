@@ -192,9 +192,9 @@ void mainPanel(){
                 Real spillway_base_width = 0.0;
                 if(Validate(rb_spillway_base_width,spillway_base_width)==FALSE) break;
 
-                if(spillway_base_width < 6.0)
+                if(spillway_base_width < 2.0)
                 {
-                    Set_data(cmbMsg,"Spillway base width must be > 6");
+                    Set_data(cmbMsg,"Spillway base width must be > 2.0");
                     break;
                 }
 
