@@ -2,7 +2,7 @@
 **   Programmer:Kleber Lessa do Prado
 **   Date:21/10/25             
 **   12D Model:            V15
-**   Version:              004
+**   Version:              005
 **   Macro Name:           Lot_Connection_Creator.4dm
 **   Type:                 SOURCE
 **
@@ -45,9 +45,10 @@
 **
 **---------------------------------------------------------------------
 **   Update/Modification
-**   Version 004 - Added validation of LC element after search and after duplication, with error logging
-**   Versio 003 - Added explanation at the headers about draped polygons Option
-**   Versio 002 - Added option to use lowest/highest Z  from specified TIN
+**   Version 007 - Fixed Lowest TIN z split to use the wrapped half-length PC boundary chainage after locating the lowest draped vertex; 
+**   Version 006 - Added validation of LC element after search and after duplication, with error logging
+**   Version 005 - Added explanation at the headers about draped polygons Option
+**   Version 004 - Added option to use lowest/highest Z  from specified TIN
 **---------------------------------------------------------------------
 **
 **  This macro may be reproduced, modified and used without restriction.
@@ -62,7 +63,7 @@
 #define ECHO_DEBUG_FILE 0
 #define ECHO_LINE_NO    0
  
-#define BUILD "version.0.001"
+#define BUILD "15.0.005"
  
 // ----------------------------- INCLUDES -----------------------------
 #include "standard_library.H"
@@ -190,6 +191,51 @@ Integer chainage_at_xy(Element e, Real px, Real py, Real &out_chain, Real &out_d
     return 0;
 }
 
+
+// Project XY to the closest segment of an OPEN super string and return chainage and distance.
+// Do not wrap last vertex back to first. Use this after splitting/opening polygon at the LC.
+Integer chainage_at_xy_open(Element e, Real px, Real py, Real &out_chain, Real &out_dist)
+{
+    Integer nv = 0; if (Get_points(e, nv) != 0 || nv < 2) return 1;
+
+    Real best_d2 = 1.0e99; Real best_chain = 0.0;
+
+    Real x1=0.0, y1=0.0, z1=0.0;
+    if (Get_super_vertex_coord(e, 1, x1, y1, z1) != 0) return 2;
+
+    Real acc = 0.0;
+    for (Integer j = 1; j < nv; j++)
+    {
+        Real x2=0.0, y2=0.0, z2=0.0;
+        if (Get_super_vertex_coord(e, j + 1, x2, y2, z2) != 0) return 3;
+
+        Real vx = x2 - x1, vy = y2 - y1;
+        Real wx = px - x1, wy = py - y1;
+        Real vv = vx*vx + vy*vy;
+        Real t = (vv > 0.0) ? ((wx*vx + wy*vy) / vv) : 0.0;
+        if (t < 0.0) t = 0.0; if (t > 1.0) t = 1.0;
+
+        Real qx = x1 + t*vx;
+        Real qy = y1 + t*vy;
+        Real dx = px - qx, dy = py - qy;
+        Real d2 = dx*dx + dy*dy;
+
+        if (d2 < best_d2)
+        {
+            best_d2 = d2;
+            Real seg_len = Sqrt(vv);
+            best_chain = acc + t*seg_len;
+        }
+
+        acc += Sqrt(vv);
+        x1 = x2; y1 = y2; z1 = z2;
+    }
+
+    out_chain = best_chain;
+    out_dist  = Sqrt(best_d2);
+    return 0;
+}
+
 // simple wrappers
 void log_ok(Log_Box lb, Text msg)
 {
@@ -209,6 +255,7 @@ void log_err(Log_Box lb, Text msg)
   Add_log_line(lb, ln);
   Print_log_line(ln, 1); // also flash Output Window (ID 2670)
 }
+
 
 
 /*--------------------------- MAIN PANEL --------------------------*/
@@ -394,6 +441,13 @@ void mainPanel(){
                     // Check choice box if using draped polygons
                     //Get choice from Drape polygon widget
                     Get_data(cb_drape, drape_txt);
+
+                    // Reset min/max for this polygon only
+                    minZ = 1.0e99;  minX = 0.0; minY = 0.0; minName = "";
+                    maxZ = -1.0e99; maxX = 0.0; maxY = 0.0; maxName = "";
+                    Integer minVert = 0, minDrapeItem = 0;
+                    Integer maxVert = 0, maxDrapeItem = 0;
+
                     if(drape_txt != "No")
                     {
                         // Validate TIN_Box → TIN Element
@@ -435,10 +489,12 @@ void mainPanel(){
                                     if (z < minZ)
                                     {
                                         minZ = z; minX = x; minY = y; minName = nm;
+                                        minVert = vi; minDrapeItem = k;
                                     }
                                     if (z > maxZ)
                                     {
                                         maxZ = z; maxX = x; maxY = y; maxName = nm;
+                                        maxVert = vi; maxDrapeItem = k;
                                     }
                                 }
                             }
@@ -533,14 +589,10 @@ void mainPanel(){
                             // If lowest TIN z choice is selected
                             if(drape_txt == "Lowest TIN z")
                             {
-                                Real dtmp = 0.0;
-                                Integer rc_ch = chainage_at_xy(keep, minX, minY, chTarget, dtmp);
-                                if(rc_ch == 0)
-                                {
-                                    Real ch_low = chSA - L + chTarget;
-                                    rc2 = Split_string(keep,ch_low, s_pre, s_post);
-                                }
-                                if (rc_ch != 0) { Print("chainage_at_xy(lowest Z) failed\n"); }
+                                // Lowest Z is found from the draped polygon vertices.
+                                // Final split uses the wrapped half-length chainage on the opened PC boundary.
+                                chTarget = chSplit;
+                                rc2 = Split_string(keep, chTarget, s_pre, s_post);
                             }
                             else if (drape_txt == "Highest TIN z")
                             {
