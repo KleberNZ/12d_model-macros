@@ -2,7 +2,7 @@
 **   Programmer:Kleber Lessa do Prado
 **   Date:21/10/25             
 **   12D Model:            V15
-**   Version:              005
+**   Version:              006
 **   Macro Name:           Lot_Connection_Creator.4dm
 **   Type:                 SOURCE
 **
@@ -45,10 +45,11 @@
 **
 **---------------------------------------------------------------------
 **   Update/Modification
-**   Version 007 - Fixed Lowest TIN z split to use the wrapped half-length PC boundary chainage after locating the lowest draped vertex; 
-**   Version 006 - Added validation of LC element after search and after duplication, with error logging
-**   Version 005 - Added explanation at the headers about draped polygons Option
-**   Version 004 - Added option to use lowest/highest Z  from specified TIN
+**   Version 006 - Production cleanup; corrected Help event handling and removed stale debug/comment lines
+**   Version 005 - Fixed Lowest TIN z split by mapping local opened-string distance into inherited start/end chainage domain
+**   Version 004 - Added validation of LC element after search and after duplication, with error logging
+**   Version 003 - Added explanation at the headers about draped polygons Option
+**   Version 002 - Added option to use lowest/highest Z  from specified TIN
 **---------------------------------------------------------------------
 **
 **  This macro may be reproduced, modified and used without restriction.
@@ -63,7 +64,7 @@
 #define ECHO_DEBUG_FILE 0
 #define ECHO_LINE_NO    0
  
-#define BUILD "15.0.005"
+#define BUILD "15.0.006"
  
 // ----------------------------- INCLUDES -----------------------------
 #include "standard_library.H"
@@ -145,7 +146,6 @@ Integer find_lc_inside_outside_xy(Dynamic_Element delsLC, Element e2d, Real &ix,
     return 2; // not found
 }
 
-
 // Project XY to the closest segment of a (closed) super string and return chainage and distance
 Integer chainage_at_xy(Element e, Real px, Real py, Real &out_chain, Real &out_dist)
 {
@@ -190,7 +190,6 @@ Integer chainage_at_xy(Element e, Real px, Real py, Real &out_chain, Real &out_d
     out_dist  = Sqrt(best_d2);
     return 0;
 }
-
 
 // Project XY to the closest segment of an OPEN super string and return chainage and distance.
 // Do not wrap last vertex back to first. Use this after splitting/opening polygon at the LC.
@@ -256,8 +255,6 @@ void log_err(Log_Box lb, Text msg)
   Print_log_line(ln, 1); // also flash Output Window (ID 2670)
 }
 
-
-
 /*--------------------------- MAIN PANEL --------------------------*/
 void mainPanel(){
  
@@ -266,8 +263,6 @@ void mainPanel(){
     Vertical_Group     vgroup = Create_vertical_group     (-1         );
     Colour_Message_Box cmbMsg = Create_colour_message_box (""         );
 
-    ///////////////////CREATE INPUT WIDGETS////////////////
-    // create some input fields
     Source_Box          sb_bdys2d   = Create_source_box("of 2D lot boundaries",cmbMsg,0);
     Choice_Box          cb_drape    = Create_choice_box("Drape Polygons?",cmbMsg);
     Tin_Box             tb_surface  = Create_tin_box("TIN for draping polygons",cmbMsg,CHECK_TIN_MUST_EXIST);
@@ -276,7 +271,6 @@ void mainPanel(){
     Model_Box           mb_model    = Create_model_box("Output model for property controls", cmbMsg, CHECK_MODEL_CREATE);
     Log_Box             lb          = Create_log_box("Log", 520, 80); 
     
-    ///////////////ADDING BUTTONS ALONG THE BOTTOM///////////////////////////
     Horizontal_Group bgroup = Create_button_group();
     Button process          = Create_button       ("&Process" ,"process");
     Button finish           = Create_finish_button("Finish"   ,"Finish" );
@@ -288,14 +282,11 @@ void mainPanel(){
     Append(finish       ,bgroup);
     Append(help_button  ,bgroup);
 
-    //Choice box Drape Polygons choices
     Text choices[3];
     choices[1] = "No";
     choices[2] = "Highest TIN z";
     choices[3] = "Lowest TIN z";
     Set_data(cb_drape, 3, choices);
-    ///////////////ADDING WIDGETS TO PANEL///////////////////////////
-    // add your widgets to vgroup
 
     Append(sb_bdys2d    ,vgroup);
     Append(cb_drape     ,vgroup);
@@ -331,11 +322,9 @@ void mainPanel(){
         Add_log_line(lb, Create_text_log_line(" -> PC strings take the polygon [lot] name.", 1));
         }
 
-        //Get choice from Drape polygon widget
         Text drape_txt = "";
         Get_data(cb_drape, drape_txt);
 
-        //Disable or enable TIN widget
         if(drape_txt == "No")
         {
             Set_enable(tb_surface, 0); //disable
@@ -366,9 +355,9 @@ void mainPanel(){
         {
             if(cmd == "Panel Quit") doit = 0;
             if(cmd == "Panel About") about_panel(panel);
-            if(cmd == "Help") doit = 0;
+            if(cmd == "Help")
             {
-                Print("Help is on the way");
+                Print("Help is on its way.\n");
             }
         }
         break; 
@@ -438,8 +427,6 @@ void mainPanel(){
                     Element e_off;
                     if (Super_offset(e2d, ofs, 2, e_off) != 0) { Print("offset failed: <" + nm + ">\n"); skipped++; continue; }
 
-                    // Check choice box if using draped polygons
-                    //Get choice from Drape polygon widget
                     Get_data(cb_drape, drape_txt);
 
                     // Reset min/max for this polygon only
@@ -454,17 +441,14 @@ void mainPanel(){
                         Tin tin; 
                         if (Validate(tb_surface,CHECK_TIN_MUST_EXIST, tin) == CHECK_TIN_MUST_EXIST) continue; // 8 = must exist
                         Text tname; Get_name(tin,tname);
-                        // Print("Using TIN: " + tname + "\n");
 
                         // Drape e_off onto TIN
                         Dynamic_Element draped_poly;
                         Integer drc = Drape(tin, e_off, draped_poly);
                         if (drc != 0) { Print("Drape failed: <" + nm + ">\n"); skipped++; continue; }
 
-                        // Set to temp model
                         Set_model(draped_poly, tmp);
 
-                        // If draped success 
                         Integer nd=0; 
                         if (Get_number_of_items(draped_poly, nd) != 0 || nd == 0)
                         {
@@ -536,7 +520,6 @@ void mainPanel(){
                     Set_style(lc_copy2, scrStyle);
                     Set_colour(lc_copy2,colour_pc2); // brown
 
-                    //get x y z of lc_copy
                     Real LCx1, LCy1, LCz1;
                     Integer rLC = Get_super_vertex_coord(lc_copy1, 1, LCx1, LCy1, LCz1);       // first vertex of lc_copy1
 
@@ -546,7 +529,6 @@ void mainPanel(){
                         Integer rcL = Get_length(e_off, L);
 
                         Integer rch = chainage_at_xy(e_off, inx, iny, chSA, d);
-                        //Print("diag: L=" + To_text(L) + " rcL=" + To_text(rcL) + " ch=" + To_text(chSA) + " rch=" + To_text(rch) + " d=" + To_text(d) + "\n");
                         if (rcL == 0 && rch == 0 && L > 0.0)
                         {
                             Real halfL = L * 0.5;
@@ -578,21 +560,41 @@ void mainPanel(){
                             // Save the true split piece
                             e_off = keep;
 
-                            // Inputs available: Element keep; Real chSA, L, halfL;
-                            // Compute chainage to split at
                             Real chSplit = chSA - L + halfL;
 
-                            //Check if using TIN z values for split location
                             Real chTarget = chSplit;
                             Integer rc2 = 0;
                            
-                            // If lowest TIN z choice is selected
                             if(drape_txt == "Lowest TIN z")
                             {
-                                // Lowest Z is found from the draped polygon vertices.
-                                // Final split uses the wrapped half-length chainage on the opened PC boundary.
-                                chTarget = chSplit;
-                                rc2 = Split_string(keep, chTarget, s_pre, s_post);
+                                // Drape returns one opened Super string. Its lowest XY is projected
+                                // onto the opened offset string to obtain a local distance from vertex 1.
+                                // Split_string() requires the string's actual chainage domain, so map
+                                // the local distance between the inherited start/end chainages.
+                                Real localCh = 0.0;
+                                Real dtmp = 0.0;
+                                Real keepL = 0.0;
+                                Real keepStartCh = 0.0;
+                                Real keepEndCh = 0.0;
+
+                                Integer rc_len = Get_length(keep, keepL);
+                                Integer rc_start = Get_chainage(keep, keepStartCh);
+                                Integer rc_end = Get_end_chainage(keep, keepEndCh);
+                                Integer rc_ch = chainage_at_xy_open(keep, minX, minY, localCh, dtmp);
+
+                                if(rc_len == 0 && rc_start == 0 && rc_end == 0 &&
+                                   rc_ch == 0 && keepL > 0.0 && dtmp <= XY_TOL)
+                                {
+                                    chTarget = keepStartCh
+                                             + (keepEndCh - keepStartCh) * (localCh / keepL);
+
+                                    rc2 = Split_string(keep, chTarget, s_pre, s_post);
+                                }
+                                else
+                                {
+                                    log_err(lb, "Could not map lowest draped vertex to opened property-control chainage.");
+                                    rc2 = 1;
+                                }
                             }
                             else if (drape_txt == "Highest TIN z")
                             {
@@ -606,13 +608,11 @@ void mainPanel(){
                                 if (rc_ch != 0) { Print("chainage_at_xy(highest Z) failed\n"); }
                             }
                             
-                            // split using the selected chainage
                             if(drape_txt == "No")
                             {
                                 rc2 = Split_string(keep, chTarget, s_pre, s_post); // §5.62.11 Strings Edits
                             }
 
-                            // Handle result
                             if (rc2 == 0)
                             {
                                 // Successful split: keep both pieces
@@ -687,7 +687,7 @@ void mainPanel(){
                             }
                             else
                             {
-                                Print("Split failed @ch=" + To_text(chSplit) + "\n");
+                                Print("Split failed @ch=" + To_text(chTarget) + "\n");
                             }
                         }
 
@@ -719,9 +719,6 @@ void mainPanel(){
     }
 }
 void main(){
-
-    // do some checks before you go to the main panel
-
 
     mainPanel();
 }
