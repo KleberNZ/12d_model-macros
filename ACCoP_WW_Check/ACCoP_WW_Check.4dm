@@ -39,6 +39,7 @@
 #define DEBUG_FILE      0
 #define ECHO_DEBUG_FILE 0
 #define ECHO_LINE_NO    0
+#define DEBUG_NETWORK_RELATIONSHIPS 0
 #define BUILD "V15.0.001"
 
 #include "standard_library.H"
@@ -46,326 +47,68 @@
 
 /*global variables*/{
   /* ============================ Limits ============================ */
-  #define MAX_STRINGS  1500
-  #define MAX_OCC      30000
 
   /* -------------------- Tolerances -------------------- */
   Real DROP_TOL = 0.005;   /* 5 mm drop tolerance */
   Real EPS_DEF  = 0.05;    /* 0.05 deg deflection tolerance */
 
-  /* ============================ REPORT STORAGE ============================ */
+  /* ===================== Canonical current-pit context ===================== */
+  Integer QA_pit_count = 0;
+  Integer QA_pit_depth_missing_count = 0;
 
-  #define MAX_PIT_MSG   20
-  #define MAX_PITS_ALL  MAX_OCC
+  Integer QA_same_string_upstream_count = 0;
+  Integer QA_cross_string_incoming_count = 0;
+  Integer QA_same_string_check_failure_count = 0;
+  Integer QA_cross_string_check_failure_count = 0;
+  Integer QA_downstream_pipe_count = 0;
+  Integer QA_downstream_check_failure_count = 0;
 
-  Integer PIT_has_error[MAX_PITS_ALL+1];
-  Integer PIT_msg_count[MAX_PITS_ALL+1];
+  /* ===================== Current downstream-pipe context ===================== */
+  Integer QA_have_downstream_pipe = 0;
+  Element QA_downstream_string;
+  Integer QA_downstream_pipe_index = 0;
+  Integer QA_downstream_network_pipe_id = 0;
 
-  Text    PIT_msg[MAX_PITS_ALL*MAX_PIT_MSG+1];
-  Integer PIT_msg_level[MAX_PITS_ALL*MAX_PIT_MSG+1];
+  Real QA_downstream_nominal_diameter = 0.0;
+  Real QA_downstream_invert_us = 0.0;
+  Real QA_downstream_pipe_length = 0.0;
 
-  Integer STRING_has_error[MAX_STRINGS+1];
+  Integer QA_have_downstream_nominal_diameter = 0;
+  Integer QA_have_downstream_invert_us = 0;
+  Integer QA_have_downstream_pipe_length = 0;
 
-  /* Per-string */
-  Element STR_s[MAX_STRINGS+1];
-  Integer STR_flows_to_trunk[MAX_STRINGS+1];
-  Integer STR_dir[MAX_STRINGS+1];
-  Integer STR_npits[MAX_STRINGS+1];
-  Integer STR_is_trunk[MAX_STRINGS+1];
-  Integer STR_occ_start[MAX_STRINGS+1];
-  Integer SCOUNT = 0;
+  /* ===================== Canonical report state ===================== */
+  Log_Line QA_report_model_group;
+  Log_Line QA_report_current_pit_group;
 
-  /* Per-pit occurrence */
-  Text    OCC_pit_name[MAX_OCC+1];
-  Integer OCC_str_idx[MAX_OCC+1];
-  Integer OCC_pit_idx[MAX_OCC+1];
-  Integer OCC_us_pipe_idx[MAX_OCC+1];
-  Integer OCC_ds_pipe_idx[MAX_OCC+1];
-  Integer OCC_COUNT = 0;
+  Integer QA_report_active = 0;
+  Integer QA_report_current_pit_has_error = 0;
+  Integer QA_report_error_pit_count = 0;
+
+  Integer QA_current_network_pit_id = 0;
+  Integer QA_current_pit_index = 0;
+
+  Text QA_current_string_name = "";
+  Text QA_current_pit_name = "";
+
+  Real QA_current_pit_x = 0.0;
+  Real QA_current_pit_y = 0.0;
+  Real QA_current_pit_z = 0.0;
+  Real QA_current_pit_depth = 0.0;
+  Real QA_current_pit_hgl = 0.0;
+  Real QA_current_pit_sump_level = 0.0;
+  Real QA_current_pit_nominal_diameter = 0.0;
+
+  Integer QA_have_current_pit_coordinates = 0;
+  Integer QA_have_current_pit_depth = 0;
+  Integer QA_have_current_pit_hgl = 0;
+  Integer QA_have_current_pit_sump_level = 0;
+  Integer QA_have_current_pit_nominal_diameter = 0;
+
 
 }
 
 /* ============================ Helpers =========================== */
-void reset_run_state()
-{
-
-    /* ---- reset per-string storage ---- */
-    Integer si = 1;
-    while(si <= MAX_STRINGS){
-        STR_occ_start[si]   = 0;
-        STR_npits[si]       = 0;
-        STR_is_trunk[si]    = 0;
-        STR_dir[si]         = 0;
-        STRING_has_error[si]= 0;
-        si = si + 1;
-    }
-
-    /* ---- reset per-occurrence storage ---- */
-    Integer i = 1;
-    while(i <= MAX_OCC){
-        OCC_pit_name[i]     = "";
-        OCC_str_idx[i]      = 0;
-        OCC_pit_idx[i]      = 0;
-        OCC_us_pipe_idx[i]  = 0;
-        OCC_ds_pipe_idx[i]  = 0;
-
-        PIT_has_error[i]    = 0;
-        PIT_msg_count[i]    = 0;
-
-        i = i + 1;
-    }
-
-    /* ---- reset flat message buffers (optional but safe) ---- */
-    Integer f = 1;
-    while(f <= MAX_OCC * MAX_PIT_MSG){
-        PIT_msg[f]       = "";
-        PIT_msg_level[f] = 0;
-        f = f + 1;
-    }
-
-    /* ---- reset counters last ---- */
-    SCOUNT    = 0;
-    OCC_COUNT = 0;
-}
-
-Integer is_drainage(Element e){
-  Integer n=0; if(Get_drainage_pits(e,n)!=0) return 0; return (n>0);
-}
-
-void add_pit_occurrence(Text pit_name, Integer si, Integer p, Integer us_k, Integer ds_k){
-
-    if(OCC_COUNT >= MAX_OCC) return;
-
-    OCC_COUNT = OCC_COUNT + 1;
-
-    OCC_pit_name[OCC_COUNT]      = pit_name;
-    OCC_str_idx[OCC_COUNT]       = si;
-    OCC_pit_idx[OCC_COUNT]       = p;
-    OCC_us_pipe_idx[OCC_COUNT]   = us_k;
-    OCC_ds_pipe_idx[OCC_COUNT]   = ds_k;
-
-    /* store starting OCC index for this string */
-    if(p == 1){
-        STR_occ_start[si] = OCC_COUNT;
-    }
-}
-
-Integer find_occ(Integer si, Integer p){
-
-    Integer i = 1;
-    while(i <= OCC_COUNT){
-        if(OCC_str_idx[i] == si && OCC_pit_idx[i] == p)
-            return i;
-        i = i + 1;
-    }
-
-    return 0;
-}
-
-Integer valid_pipe_index(Integer si, Integer k){
-  /* guard invalid string index */
-  if(si <= 0 || si > SCOUNT) return 0;
-  if(k<=0) return 0;
-  Integer np = STR_npits[si];
-  if(np<=1) return 0;
-  if(k>=1 && k<=np-1) return 1;
-  return 0;
-}
-
-void harvest_from_selection(Dynamic_Element sel)
-{
-  Integer n=0; Get_number_of_items(sel, n);
-  Integer i=1;
-  while(i<=n){
-    Element s; Get_item(sel, i, s);                 /* ID=128 */
-
-    Integer npits=0;
-    if(Get_drainage_pits(s,npits)!=0 || npits<=0){ i=i+1; continue; }  /* drainage only */
-
-    Integer dir=1; Get_drainage_flow(s, dir);
-    Element trunk_el; 
-    Integer rc_tr = Get_drainage_trunk(s, trunk_el);
-
-    /* Manual semantics:
-      rc_tr == 0  → this string flows into a trunk (branch)
-      rc_tr == 44 → downstream is outlet
-      other nonzero → no trunk relationship determined
-    */
-    Integer flows_to_trunk = (rc_tr == 0); /* ID=1444 */
-
-    Integer is_tr = (rc_tr==0) ? 0 : 1;  /* 0=branch, nonzero=trunk */
-
-    if(SCOUNT < MAX_STRINGS){
-      SCOUNT = SCOUNT + 1;
-      STR_s[SCOUNT]        = s;
-      STR_flows_to_trunk[SCOUNT] = flows_to_trunk;
-      STR_dir[SCOUNT]      = dir;
-      STR_npits[SCOUNT]    = npits;
-
-      Integer p=1;
-      while(p<=npits){
-        Integer prev_k = (p>1)     ? (p-1) : 0;  /* pipe just upstream if dir==1 */
-        Integer next_k = (p<npits) ?  p   : 0;  /* pipe just downstream if dir==1 */
-        Integer us_k   = (dir==1) ? prev_k : next_k;
-        Integer ds_k   = (dir==1) ? next_k : prev_k;
-
-        Text pname=""; Get_drainage_pit_name(s, p, pname);
-        add_pit_occurrence(pname, SCOUNT, p, us_k, ds_k);
-
-        p = p + 1;
-      }
-    }
-    i = i + 1;
-  }
-}
-
-/* Resolve DS pipe for pit p on string si. Returns 1 if found. */
-Integer resolve_ds_pipe(Integer si, Integer p, Integer &out_si, Integer &out_k, Text &out_name){
-  out_si = si; out_k = 0; out_name="[none]";
-
-  Integer occ = find_occ(si,p); if(occ==0) return 0;
-
-  /* local DS first */
-  Integer local_k = OCC_ds_pipe_idx[occ];
-  if(valid_pipe_index(si,local_k)){
-    out_k = local_k;
-    Get_drainage_pipe_name(STR_s[si], out_k, out_name);
-    return 1;
-  }
-
-  /* otherwise look at other strings sharing the same pit */
-  Text key = OCC_pit_name[occ];
-
-  /* prefer a trunk */
-  Integer i=1;
-  while(i<=OCC_COUNT){
-    if(OCC_pit_name[i]==key && OCC_str_idx[i]!=si){
-      Integer osi = OCC_str_idx[i];
-      if(STR_flows_to_trunk[osi]==0){
-        Integer ok = OCC_ds_pipe_idx[i];
-        if(valid_pipe_index(osi,ok)){
-          out_si=osi; out_k=ok; Get_drainage_pipe_name(STR_s[osi], out_k, out_name); return 1;
-        }
-      }
-    }
-    i=i+1;
-  }
-  /* then any other */
-  Integer j=1;
-  while(j<=OCC_COUNT){
-    if(OCC_pit_name[j]==key && OCC_str_idx[j]!=si){
-      Integer osi = OCC_str_idx[j];
-      Integer ok = OCC_ds_pipe_idx[j];
-      if(valid_pipe_index(osi,ok)){
-        out_si=osi; out_k=ok; Get_drainage_pipe_name(STR_s[osi], out_k, out_name); return 1;
-      }
-    }
-    j=j+1;
-  }
-  return 0;
-}
-
-/* ============================ Printing ============================ */
-void print_pipe_line(Element drain, Text prefix, Integer idx)
-{
-  Text name=""; Real pipe_dn=0.0, grade=0.0;
-  Get_drainage_pipe_name(drain, idx, name);
-  Get_drainage_pipe_nominal_diameter(drain, idx, pipe_dn);
-  Get_drainage_pipe_grade(drain, idx, grade);
-
-  Real inv_us=0.0, inv_ds=0.0; Integer got_us=0, got_ds=0;
-  if(Get_drainage_pipe_attribute(drain, idx, "invert us", inv_us) == 0) got_us=1;
-  if(Get_drainage_pipe_attribute(drain, idx, "invert ds", inv_ds) == 0) got_ds=1;
-  if(!got_us || !got_ds){
-    Real lhs=0.0, rhs=0.0;
-    if(Get_drainage_pipe_inverts(drain, idx, lhs, rhs) == 0){
-      if(!got_us) inv_us = lhs;
-      if(!got_ds) inv_ds = rhs;
-    }
-  }
-
-  Real drop_val = 0.0, ds_defl=0.0, pipe_length=0.0, min_cover=0.0, vel_10=0.0, vel_2=0.0;
-  Get_drainage_pipe_attribute(drain, idx, "calculated pipe length", pipe_length);
-  Get_drainage_pipe_attribute(drain, idx, "calculated drop",          drop_val);
-  Get_drainage_pipe_attribute(drain, idx, "calculated ds deflection", ds_defl);
-  ds_defl = Absolute(ds_defl);
-  Get_drainage_pipe_attribute(drain, idx, "minimum cover", min_cover);
-  Get_drainage_pipe_attribute(drain, idx, "10yr ARI/normal velocity", vel_10);
-  Get_drainage_pipe_attribute(drain, idx, "2yr ARI/normal velocity",  vel_2);
-
-  Real grade_pct = (grade>0.0) ? 100.0/grade : 0.0;
-
-}
-
-// helper: store pit message (12dPL-safe)
-void store_pit_msg(Integer occ_idx, Text msg, Integer level)
-{
-    if(occ_idx <= 0) return;
-    if(occ_idx > OCC_COUNT) return;   /* ADD THIS GUARD */
-    
-    if(PIT_msg_count[occ_idx] >= MAX_PIT_MSG) return;
-
-    PIT_msg_count[occ_idx] = PIT_msg_count[occ_idx] + 1;
-    Integer m = PIT_msg_count[occ_idx];
-
-    Integer flat = (occ_idx-1)*MAX_PIT_MSG + m;
-
-    if(flat <= 0) return;  /* defensive */
-    if(flat > MAX_OCC*MAX_PIT_MSG) return;  /* defensive */
-
-    PIT_msg[flat]       = msg;
-    PIT_msg_level[flat] = level;
-
-    if(level == 3)
-        PIT_has_error[occ_idx] = 1;
-}
-
-/* Convenience: get outlet pipe using local ds_idx, else resolver */
-Integer get_outlet_pipe(Integer si, Integer p, Integer ds_idx,
-                        Integer &o_si, Integer &o_k, Text &o_name)
-{
-  o_si = si; o_k = 0; o_name = "[none]";
-  if(valid_pipe_index(si, ds_idx)){
-    o_k = ds_idx;
-    Get_drainage_pipe_name(STR_s[o_si], o_k, o_name);
-    return 1;
-  }
-  return resolve_ds_pipe(si, p, o_si, o_k, o_name);
-}
-
-
-// Get pit depth with fallback if attribute missing
-Integer get_pit_depth(Element drain, Integer p_idx, Real &depth_m)
-{
-  Real d=0.0;
-  if(Get_drainage_pit_attribute(drain, p_idx, "pit depth", d) == 0) { depth_m = d; return 0; }
-  Real cover=0.0, ds_inv=0.0;
-  if(Get_drainage_pit_attribute(drain, p_idx, "cover rl", cover) != 0) return 1;
-  if(Get_drainage_pit_attribute(drain, p_idx, "ds invert", ds_inv) != 0) return 1;
-  depth_m = cover - ds_inv;
-  return 0;
-}
-
-// Read pit DN (mm) from text first, then numeric fallback
-Real get_pit_dn_mm(Element drain, Integer p_idx)
-{
-  Text pit_dn_txt=""; Real pit_dn=0.0;
-  if(Get_drainage_pit_attribute(drain, p_idx, "lplot Nominal Diameter", pit_dn_txt) == 0) {
-    From_text(pit_dn_txt, pit_dn);
-  } else {
-    Get_drainage_pit_attribute(drain, p_idx, "lplot Nominal Diameter", pit_dn);
-  }
-  return pit_dn;
-}
-
-// Compute panel-grade percent from pipe grade value returned by API
-Real pipe_grade_percent(Real grade_val) {
-  // Keep consistent with prior macro convention
-  return (grade_val > 0.0) ? 100.0/grade_val : 0.0;
-}
-
-// Compute internal-fall min drop (m)
-// Inputs: us_dn, ds_dn in mm, us_def_deg = |calculated ds deflection| from upstream pipe
 Real ww_min_drop_m(Real us_dn, Real ds_dn, Real us_def_deg)
 {
   if(ds_dn > us_dn) {
@@ -379,457 +122,1328 @@ Real ww_min_drop_m(Real us_dn, Real ds_dn, Real us_def_deg)
 }
 
 // Apply Watercare checks for a string, printing per-pit messages
-void process_ww_string(Element drain, Integer si)
+
+void Output_line(Text text)
 {
-  Integer npits=0;
- if(Get_drainage_pits(drain, npits)!=0 || npits<=0)
-  {
-      STRING_has_error[si] = 1;
-      return;
-  }
-
-  // Flow direction: 1 with chainage, 0 opposite
-  Integer dir=1; Get_drainage_flow(drain, dir);
-
-  // Walk pits in chainage order; immediate US/DS indices for the same string
-  for(Integer p=1; p<=npits; p++)
-  {
-    Text pit_name=""; Get_drainage_pit_name(drain, p, pit_name);
-    Integer occ_idx = find_occ(si, p);
-    Integer pit_flags = 0;
-    Integer pipe_flags = 0;
-
-    Integer prev_idx = (p>1)     ? (p-1) : 0;
-    Integer next_idx = (p<npits) ?  p    : 0;
-    Integer us_idx = (dir==1) ? prev_idx : next_idx;
-    Integer ds_idx = (dir==1) ? next_idx : prev_idx;
-
-    // Pipe diameters, grade, deflection, length
-    Real us_dn=0.0, ds_dn=0.0, us_grade=0.0, ds_grade=0.0, us_def=0.0, pipe_len=0.0;
-    if(us_idx>0){
-      Get_drainage_pipe_nominal_diameter(drain, us_idx, us_dn);
-      Get_drainage_pipe_grade(drain, us_idx, us_grade);
-      Get_drainage_pipe_attribute(drain, us_idx, "calculated ds deflection", us_def);
-      us_def = Absolute(us_def);
-    }
-    if(ds_idx>0){
-      Get_drainage_pipe_nominal_diameter(drain, ds_idx, ds_dn);
-      Get_drainage_pipe_grade(drain, ds_idx, ds_grade);
-      Get_drainage_pipe_attribute(drain, ds_idx, "calculated pipe length", pipe_len);
-    }
-
-    // Pit depth and DN
-    Real pit_depth=0.0; get_pit_depth(drain, p, pit_depth);
-    Real pit_dn = get_pit_dn_mm(drain, p);
-
-    // If downstream pit, use pipe-to-pipe; at terminal, compare to sump if available
-    Integer is_upstream   = ((dir==1 && p==1)    || (dir==0 && p==npits)) ? 1 : 0;
-    Integer is_downstream = ((dir==1 && p==npits)|| (dir==0 && p==1))     ? 1 : 0;
-
-    Integer is_blank_cap = (pit_dn <= 0.0);
-
-    Integer is_terminal_end = (us_idx == 0);
-    Real extension_len = pipe_len;
-    Integer skip_min_dia = (is_terminal_end && extension_len <= 55.0 && is_blank_cap);
-
-    // Inverts and measured MH drop across pit (positive means step down across pit)
-    Real inv_us_ds=0.0, inv_ds_us=0.0, sump=0.0, mh_drop=0.0;
-    if(us_idx>0) Get_drainage_pipe_attribute(drain, us_idx, "invert ds", inv_us_ds);
-    if(ds_idx>0) Get_drainage_pipe_attribute(drain, ds_idx, "invert us", inv_ds_us);
-
-    if(!is_upstream){
-      if(is_downstream) {
-        if(us_idx>0){
-          Get_drainage_pit_attribute(drain, p, "sump level", sump);
-          mh_drop = inv_us_ds - sump;
-        }
-      } else {
-        if(us_idx>0 && ds_idx>0){
-          mh_drop = inv_us_ds - inv_ds_us;
-        }
-      }
-    }
-
-    // -------- CHECK 1: pipe on steep grade ≥10% → bedding 7 MPa --------
-    if(us_idx>0) {
-      Real us_grade_pct = pipe_grade_percent(us_grade);
-      if(us_grade_pct >= 10.0 && us_grade_pct <= 20.0) {
-        pipe_flags = 1; // steep
-        store_pit_msg(occ_idx, "WW_CoP 5.3.7.11: Pipe grade " + To_text(us_grade_pct,2) + "% requires pipe bedding min. 7MPa scoria concrete", 2);
-        PIT_has_error[occ_idx] = 1;
-        STRING_has_error[si] = 1;
-      }
-    }
-
-    // -------- CHECK 2: pipe grade ≥20% → anchor blocks --------
-    if(us_idx>0) {
-      Real us_grade_pct = pipe_grade_percent(us_grade);
-      if(us_grade_pct >= 20.0) {
-        pipe_flags = 1; // very steep
-        store_pit_msg(occ_idx, "WW_CoP 5.3.7.11: Pipe grade " + To_text(us_grade_pct,2) + "% requires anchor blocks (6 m spacings)", 1);
-      }
-    }
-
-    // -------- CHECK 3: distance between pits (pipe length proxy) >100 m --------
-    if(ds_idx>0) {
-      if(pipe_len > 100.0) {
-        pipe_flags = 1; // pits too far apart
-        store_pit_msg(occ_idx, "WW_CoP 5.3.8.3: Pipe length " + To_text(pipe_len,1) + " m exceeds 100 m maximum between pits", 2);
-        PIT_has_error[occ_idx] = 1;
-        STRING_has_error[si] = 1;
-      }
-    }
-
-    Integer is_branch = STR_flows_to_trunk[si]; // check if it is branch
-    Integer is_branch_outlet = (is_branch && ds_idx == 0); // downstream end of branch
-
-    if(!skip_min_dia && !is_branch_outlet)
-    {
-        // -------- CHECK 4: Minimum pit sizes by depth --------
-
-        Integer req_dia = 0;
-
-        if     (pit_depth < 3.0)      req_dia = 1050;
-        else if(pit_depth <= 6.0)     req_dia = 1200;
-        else                          req_dia = 1500;
-
-        // --- Override: Internal dropper required ---
-        // If drop across pit exceeds 150 mm (with tolerance),
-        // minimum MH must be 1200 regardless of depth.
-
-        Real dropper_limit = 0.15;   // 150 mm
-
-        if((mh_drop - dropper_limit) > DROP_TOL)
-        {
-            if(req_dia < 1200)
-                req_dia = 1200;
-        }
-
-        if(req_dia > 0 && Absolute(pit_dn - req_dia) > 1.0)
-        {
-            pit_flags = 1;
-
-            store_pit_msg(occ_idx,
-                "WW_CoP 5.3.8.4: Manhole DIA should be "
-                + To_text(req_dia)
-                + " mm (depth "
-                + To_text(pit_depth,2)
-                + " m; found "
-                + To_text(pit_dn,0)
-                + " mm)",
-                2);
-
-            PIT_has_error[occ_idx] = 1;
-            STRING_has_error[si]   = 1;
-        }
-    }
-
-
-    // -------- CHECK 5: Internal falls (minimum drop) --------
-    if(us_idx > 0)
-    {
-      Real min_drop = ww_min_drop_m(us_dn, ds_dn, us_def);
-
-      // Only flag if shortfall exceeds tolerance
-      if((min_drop - mh_drop) > DROP_TOL)
-      {
-        pipe_flags = 1;
-        store_pit_msg(occ_idx, "WW_CoP 5.3.8.4: Internal fall below minimum " + To_text(min_drop,3) + " m (found " + To_text(mh_drop,3) + " m)", 2);
-        PIT_has_error[occ_idx] = 1;
-        STRING_has_error[si]   = 1;
-      }
-    }
-
-    // -------- CHECK 6: Allowance for steep pipe grade (>7%) --------
-    if(us_idx>0) {
-
-      Real us_grade_pct = pipe_grade_percent(us_grade);
-
-      if(us_grade_pct > 7.0) {
-
-        // 6.1 Depth by size (use upstream pipe size)
-
-        if(us_dn <= 225.0 && !(pit_depth > 1.5)) {
-          pipe_flags = 1;
-
-          store_pit_msg(occ_idx,
-            "WW_CoP 5.3.8.4.5: For DN<=225 and grade>7%, pit depth must be >1.5 m (found "
-            + To_text(pit_depth,2) + " m)",
-            2);
-
-          PIT_has_error[occ_idx] = 1;
-          STRING_has_error[si] = 1;
-        }
-
-        if(us_dn >= 300.0 && !(pit_depth > 2.0)) {
-          pipe_flags = 1;
-
-          store_pit_msg(occ_idx,
-            "WW_CoP 5.3.8.4.5: For DN>=300 and grade>7%, pit depth must be >2.0 m (found "
-            + To_text(pit_depth,2) + " m)",
-            2);
-
-          PIT_has_error[occ_idx] = 1;
-          STRING_has_error[si] = 1;
-        }
-
-        // 6.2 Deflection <45°
-        if((us_def - 45.0) > EPS_DEF) {
-          pipe_flags = 1;
-
-          store_pit_msg(occ_idx,
-            "WW_CoP 5.3.8.4.5: For grade>7%, deflection must be <45deg (found "
-            + To_text(us_def,1) + "°)",
-            2);
-
-          PIT_has_error[occ_idx] = 1;
-          STRING_has_error[si] = 1;
-        }
-
-        // 6.3 Max drop = DN (m) or internal dropper required
-        Real min_drop = ww_min_drop_m(us_dn, ds_dn, us_def);
-        Real max_drop = us_dn / 1000.0;
-
-        if((mh_drop - max_drop) > DROP_TOL) {
-          pipe_flags = 1;
-          store_pit_msg(occ_idx, "WW_CoP 5.3.8.4.5: Internal fall exceeds " + To_text(max_drop,3) + " m (found " + To_text(mh_drop,3) + " m). Internal dropper to be provided.", 2);
-          PIT_has_error[occ_idx] = 1;
-          STRING_has_error[si] = 1;
-        }
-      }
-    }
-    if (pipe_flags == 1){
-        print_pipe_line(drain, "US ", us_idx);
-    }
-
-    if (pit_flags == 0 && pipe_flags == 0){
-        store_pit_msg(occ_idx, "CoP Check = OK", 1);
-    }
-  }
+    Print(text);
+    Print();
 }
 
-void build_log(Log_Box lb_report)
+
+void Reset_current_pit_context()
 {
-    Integer string_level = 1;
-    Integer pit_level    = 1;
-    Integer clause_level = 1;
+    QA_current_network_pit_id = 0;
+    QA_current_pit_index = 0;
 
-    Integer si = 1;
+    QA_current_string_name = "";
+    QA_current_pit_name = "";
 
-    while(si <= SCOUNT)
+    QA_current_pit_x = 0.0;
+    QA_current_pit_y = 0.0;
+    QA_current_pit_z = 0.0;
+    QA_current_pit_depth = 0.0;
+    QA_current_pit_hgl = 0.0;
+    QA_current_pit_sump_level = 0.0;
+    QA_current_pit_nominal_diameter = 0.0;
+
+    QA_have_current_pit_coordinates = 0;
+    QA_have_current_pit_depth = 0;
+    QA_have_current_pit_hgl = 0;
+    QA_have_current_pit_sump_level = 0;
+    QA_have_current_pit_nominal_diameter = 0;
+
+    Null(QA_downstream_string);
+
+    QA_have_downstream_pipe = 0;
+    QA_downstream_pipe_index = 0;
+    QA_downstream_network_pipe_id = 0;
+    QA_downstream_nominal_diameter = 0.0;
+    QA_downstream_invert_us = 0.0;
+    QA_downstream_pipe_length = 0.0;
+    QA_have_downstream_nominal_diameter = 0;
+    QA_have_downstream_invert_us = 0;
+    QA_have_downstream_pipe_length = 0;
+}
+
+
+// ------------------------------------------------------------------
+// CANONICAL REPORT HELPERS
+// ------------------------------------------------------------------
+
+void QA_start_canonical_report(
+    Log_Box lb_report,
+    Text model_name)
+{
+    QA_report_active=1;
+    QA_report_current_pit_has_error=0;
+    QA_report_error_pit_count=0;
+
+    QA_report_model_group=
+        Create_group_log_line(
+            "=== Drainage Model: "+model_name+" ===",
+            1);
+
+    Add_log_line(
+        lb_report,
+        QA_report_model_group);
+}
+
+void QA_start_current_pit_report()
+{
+    QA_report_current_pit_has_error=0;
+
+    if(!QA_report_active) return;
+
+    QA_report_current_pit_group=
+        Create_group_log_line(
+            "Pit = ["+QA_current_pit_name+
+            "]  String = ["+QA_current_string_name+"]",
+            1);
+
+    Append_log_line(
+        QA_report_current_pit_group,
+        QA_report_model_group);
+
+    if(QA_have_current_pit_coordinates)
     {
-        Element drain = STR_s[si];
+        Log_Line highlight=
+            Create_highlight_point_log_line(
+                "Pan to Pit",
+                1,
+                QA_current_pit_x,
+                QA_current_pit_y,
+                QA_current_pit_z);
 
-        Text sname = "";
-        Get_name(drain, sname);
+        Append_log_line(
+            highlight,
+            QA_report_current_pit_group);
+    }
+}
 
-        Text header = "=== WW String: " + sname;
+void QA_report_error(Text message)
+{
+    QA_report_current_pit_has_error=1;
 
-        if(STRING_has_error[si] == 0)
-            header = header + "  Complies with CoP ===";
-        else
-            header = header + "  Does NOT comply with CoP - See details below ===";
+    if(QA_report_active)
+    {
+        Log_Line clause=
+            Create_text_log_line(
+                message,
+                3);
 
-        Log_Line string_group =
-            Create_group_log_line(header, string_level);
+        Append_log_line(
+            clause,
+            QA_report_current_pit_group);
+    }
 
-        Add_log_line(lb_report, string_group);
+    if(DEBUG_NETWORK_RELATIONSHIPS)
+    {
+        Output_line(
+            "    QA ERROR: "+message);
+    }
+}
 
-        Integer occ_start = STR_occ_start[si];
-        Integer occ_end;
+void QA_report_info(Text message)
+{
+    if(QA_report_active)
+    {
+        Log_Line clause=
+            Create_text_log_line(
+                message,
+                1);
 
-        if(si < SCOUNT)
-            occ_end = STR_occ_start[si+1] - 1;
-        else
-            occ_end = OCC_COUNT;
+        Append_log_line(
+            clause,
+            QA_report_current_pit_group);
+    }
 
-        Integer occ_idx = occ_start;
+    if(DEBUG_NETWORK_RELATIONSHIPS)
+    {
+        Output_line(
+            "    QA INFO: "+message);
+    }
+}
 
-        while(occ_idx <= occ_end)
+void QA_finalise_current_pit_report()
+{
+    if(!QA_report_active) return;
+
+    if(QA_report_current_pit_has_error)
+    {
+        QA_report_error_pit_count=
+            QA_report_error_pit_count+1;
+    }
+    else
+    {
+        Log_Line clause=
+            Create_text_log_line(
+                "CoP Check = OK",
+                1);
+
+        Append_log_line(
+            clause,
+            QA_report_current_pit_group);
+    }
+}
+
+
+// helper: checks that apply to one resolved direct-upstream wastewater pipe
+void Check_direct_upstream_pipe(
+    Element current_string,
+    Integer current_pit_index,
+    Integer current_network_pit_id,
+    Element pipe_string,
+    Integer pipe_index,
+    Integer network_pipe_id,
+    Integer relationship_type)
+{
+    Integer check_failed=0;
+
+    Text pipe_string_name="<name unavailable>";
+    Get_name(pipe_string,pipe_string_name);
+
+    Text pipe_attribute_name="<pipe name unavailable>";
+    if(Get_drainage_pipe_attribute(
+        pipe_string,
+        pipe_index,
+        "pipe name",
+        pipe_attribute_name)!=0)
+    {
+        pipe_attribute_name="<pipe name unavailable>";
+    }
+
+    Real pipe_dn=0.0;
+    Integer pipe_dn_rc=
+        Get_drainage_pipe_nominal_diameter(
+            pipe_string,
+            pipe_index,
+            pipe_dn);
+
+    Real pipe_grade=0.0;
+    Integer pipe_grade_rc=
+        Get_drainage_pipe_attribute(
+            pipe_string,
+            pipe_index,
+            "calculated pipe grade",
+            pipe_grade);
+
+    Real pipe_deflection=0.0;
+    Integer pipe_deflection_rc=
+        Get_drainage_pipe_attribute(
+            pipe_string,
+            pipe_index,
+            "calculated ds deflection",
+            pipe_deflection);
+
+    if(pipe_grade_rc==0)
+    {
+        if(pipe_grade>=10.0 && pipe_grade<20.0)
         {
-            Text pit_name = OCC_pit_name[occ_idx];
+            check_failed=1;
 
-            Text pit_header = "Pit = [" + pit_name + "]";
+            QA_report_error(
+                "WW CoP 5.3.7.11 grade 10%-20% requires "+
+                "minimum 7 MPa scoria-concrete bedding"+
+                " [pipe name="+pipe_attribute_name+
+                "; grade="+To_text(pipe_grade,3)+"%]"
+            );
+        }
 
-            if(PIT_has_error[occ_idx] == 0)
-                pit_header = pit_header;
-            else
-                pit_header = pit_header + "  Expand to see errors";
+        // Existing behaviour retained as informational only.
+        if(pipe_grade>=20.0)
+        {
+            QA_report_info(
+                "WW CoP 5.3.7.11 grade >=20% requires "+
+                "anchor blocks at 6 m spacing"+
+                " [pipe name="+pipe_attribute_name+
+                "; grade="+To_text(pipe_grade,3)+"%]"
+            );
+        }
+    }
 
-            Log_Line pit_group =
-                Create_group_log_line(pit_header, pit_level);
-
-            Append_log_line(pit_group, string_group);
-
-            // --- Pan to pit ---
-            Real px, py, pz;
-            Get_drainage_pit(drain,
-                             OCC_pit_idx[occ_idx],
-                             px, py, pz);
-
-            Log_Line hl =
-                Create_highlight_point_log_line(
-                    "Pan to Pit",
-                    1,
-                    px, py, pz);
-
-            Append_log_line(hl, pit_group);
-
-            // --- Add stored messages ---
-            Integer base =
-                (occ_idx - 1) * MAX_PIT_MSG;
-
-            Integer m = 1;
-            while(m <= PIT_msg_count[occ_idx])
+    if(pipe_grade_rc==0 && pipe_dn_rc==0 && pipe_grade>7.0)
+    {
+        if(QA_have_current_pit_depth)
+        {
+            if(pipe_dn<=225.0 && QA_current_pit_depth<=1.5)
             {
-                Text msg =
-                    PIT_msg[base + m];
+                check_failed=1;
 
-                Integer level =
-                    PIT_msg_level[base + m];
-
-                Log_Line clause =
-                    Create_text_log_line(msg, level);
-
-                Append_log_line(clause, pit_group);
-
-                m = m + 1;
+                QA_report_error(
+                    "WW CoP 5.3.8.4.5 grade >7% with DN <=225 "+
+                    "requires pit depth >1.5 m"+
+                    " [pipe name="+pipe_attribute_name+
+                    "; pit depth="+To_text(QA_current_pit_depth,3)+" m]"
+                );
             }
 
-            occ_idx = occ_idx + 1;
+            if(pipe_dn>=300.0 && QA_current_pit_depth<=2.0)
+            {
+                check_failed=1;
+
+                QA_report_error(
+                    "WW CoP 5.3.8.4.5 grade >7% with DN >=300 "+
+                    "requires pit depth >2.0 m"+
+                    " [pipe name="+pipe_attribute_name+
+                    "; pit depth="+To_text(QA_current_pit_depth,3)+" m]"
+                );
+            }
         }
 
-        si = si + 1;
+        if(pipe_deflection_rc==0 &&
+           Absolute(pipe_deflection)>45.0)
+        {
+            check_failed=1;
+
+            QA_report_error(
+                "WW CoP 5.3.8.4.5 grade >7% requires "+
+                "deflection <=45 deg"+
+                " [pipe name="+pipe_attribute_name+
+                "; found="+To_text(Absolute(pipe_deflection),1)+" deg]"
+            );
+        }
     }
-}
 
-void release_drainage_handles()
-{
-    Integer i = 1;
-    while(i <= SCOUNT){
-        Null(STR_s[i]);
-        i = i + 1;
-    }
-}
+    // Resolve the incoming pipe downstream invert for pit-drop checks.
+    Real incoming_invert_ds=0.0;
+    Integer incoming_invert_ds_rc=
+        Get_drainage_pipe_attribute(
+            pipe_string,
+            pipe_index,
+            "invert ds",
+            incoming_invert_ds);
 
-/* ============================ Panel ============================ */
-void mainPanel()
-{
-    Text panelName="ACCoP WW Check";
-    Panel              panel      = Create_panel              (panelName, TRUE);
-    Vertical_Group     vgroup     = Create_vertical_group     (-1             );
-    Colour_Message_Box cmbMsg     = Create_colour_message_box (""             );
-    Log_Box            lb_report  = Create_log_box            ("WSL Wastewater Report",90, 14);
+    Integer have_actual_drop=0;
+    Real actual_drop=0.0;
 
-    ///////////////////CREATE INPUT WIDGETS////////////////
-    /* Scope selection (model/view/strings) */
-    Source_Box scope = Create_source_box("Scope (model/view/strings)", cmbMsg, 0);
-
-    ///////////////ADDING BUTTONS ALONG THE BOTTOM///////////////////////////
-    Horizontal_Group bgroup = Create_button_group();
-    Button process     = Create_button       ("&Process" ,"process");
-    Button finish      = Create_finish_button("Finish"   ,"Finish" );
-    Button help_button = Create_help_button  (panel      ,"Help"   );
-    Append(process      ,bgroup);
-    Append(finish       ,bgroup);
-    Append(help_button  ,bgroup);
-
-    ///////////////ADDING WIDGETS TO PANEL///////////////////////////
-    Append(scope, vgroup);
-    Append(cmbMsg,   vgroup);
-    Append(lb_report, vgroup);
-    Append(bgroup,  vgroup);
-    Append(vgroup,  panel);
-    Show_widget(panel);
-
-    Integer doit = 1;
-    while(doit)
+    if(incoming_invert_ds_rc==0)
     {
-        Text cmd=""; Text msg = "";
-        Integer id, ret = Wait_on_widgets(id,cmd,msg);
+        if(QA_have_downstream_invert_us)
+        {
+            actual_drop=
+                incoming_invert_ds-
+                QA_downstream_invert_us;
 
-        switch(cmd)
-        {
-        case "keystroke" :
-        case "set_focus"  :
-        case "kill_focus" :
-        {
-            continue;
+            have_actual_drop=1;
         }
-        break;
-        case "CodeShutdown" :
+        else if(QA_have_current_pit_sump_level)
         {
-            Set_exit_code(cmd);
-        }
-        break;
-        }
-        switch(id)
-        {
-        case Get_id(panel) :
-        {
-            if(cmd == "Panel Quit") doit = 0;
-            if(cmd == "Panel About") about_panel(panel);
-        }
-        break; 
+            // Network outlet: preserve the existing terminal-pit comparison.
+            actual_drop=
+                incoming_invert_ds-
+                QA_current_pit_sump_level;
 
-        case Get_id(process):
+            have_actual_drop=1;
+        }
+    }
+
+    // WW CoP 5.3.8.4 - minimum internal fall.
+    if(
+        have_actual_drop &&
+        pipe_dn_rc==0 &&
+        pipe_deflection_rc==0)
+    {
+        Real minimum_drop=
+            ww_min_drop_m(
+                pipe_dn,
+                QA_downstream_nominal_diameter,
+                Absolute(pipe_deflection));
+
+        if((minimum_drop-actual_drop)>DROP_TOL)
         {
-          if(cmd == "process")
-          {
-            // Clear log box
-            Clear(lb_report);
-            
-            Dynamic_Element sel;
-            Integer rc = Validate(scope, sel);
-            Integer n=0; Get_number_of_items(sel, n);
-            if(n<=0){ Set_data(cmbMsg, "Select a model/view/strings in data set.", 2); continue; }
-            
-            reset_run_state();
+            check_failed=1;
 
-            harvest_from_selection(sel);
+            QA_report_error(
+                "WW CoP 5.3.8.4 internal fall below minimum"+
+                " [pipe name="+pipe_attribute_name+
+                "; minimum="+To_text(minimum_drop,3)+" m"+
+                "; found="+To_text(actual_drop,3)+" m]"
+            );
+        }
+    }
 
-            if(SCOUNT==0){
-                Set_data(cmbMsg, "No drainage strings in data set.", 2);
+    // WW CoP 5.3.8.4.5 - maximum fall for incoming grade >7%.
+    if(
+        have_actual_drop &&
+        pipe_grade_rc==0 &&
+        pipe_dn_rc==0 &&
+        pipe_grade>7.0)
+    {
+        Real maximum_drop=
+            pipe_dn/1000.0;
+
+        if((actual_drop-maximum_drop)>DROP_TOL)
+        {
+            check_failed=1;
+
+            QA_report_error(
+                "WW CoP 5.3.8.4.5 internal fall exceeds "+
+                To_text(maximum_drop,3)+" m; internal dropper required"+
+                " [pipe name="+pipe_attribute_name+
+                "; found="+To_text(actual_drop,3)+" m]"
+            );
+        }
+    }
+
+    // WW CoP 5.3.8.4 - minimum manhole diameter.
+    // Canonical branch-end duplicate pits are not traversed. A network outlet
+    // with no nominated pit diameter is retained as the terminal blank-cap case.
+    Integer skip_minimum_diameter=0;
+
+    if(
+        !QA_have_downstream_pipe &&
+        QA_have_current_pit_nominal_diameter &&
+        QA_current_pit_nominal_diameter<=0.0)
+    {
+        skip_minimum_diameter=1;
+    }
+
+    if(
+        !skip_minimum_diameter &&
+        QA_have_current_pit_depth &&
+        QA_have_current_pit_nominal_diameter)
+    {
+        Integer required_diameter=1050;
+
+        if(QA_current_pit_depth>=3.0)
+        {
+            required_diameter=1200;
+        }
+
+        if(QA_current_pit_depth>6.0)
+        {
+            required_diameter=1500;
+        }
+
+        if(
+            have_actual_drop &&
+            (actual_drop-0.15)>DROP_TOL &&
+            required_diameter<1200)
+        {
+            required_diameter=1200;
+        }
+
+        if(
+            Absolute(
+                QA_current_pit_nominal_diameter-
+                required_diameter)>1.0)
+        {
+            check_failed=1;
+
+            QA_report_error(
+                "WW CoP 5.3.8.4 manhole diameter should be "+
+                To_text(required_diameter)+" mm"+
+                " [pipe name="+pipe_attribute_name+
+                "; pit depth="+To_text(QA_current_pit_depth,3)+" m"+
+                "; found="+To_text(QA_current_pit_nominal_diameter,0)+" mm]"
+            );
+        }
+    }
+
+    if(check_failed)
+    {
+        if(relationship_type==1)
+        {
+            QA_same_string_check_failure_count=
+                QA_same_string_check_failure_count+1;
+        }
+        else
+        {
+            QA_cross_string_check_failure_count=
+                QA_cross_string_check_failure_count+1;
+        }
+    }
+
+    if(DEBUG_NETWORK_RELATIONSHIPS)
+    {
+        Text result_text="NO FLAG";
+        Text relationship_text="SAME-STRING UPSTREAM";
+
+        if(check_failed) result_text="FAIL";
+        if(relationship_type==2)
+        {
+            relationship_text="CROSS-STRING INCOMING";
+        }
+
+        Output_line(
+            "    QA CHECKED: "+
+            relationship_text+
+            " / "+
+            pipe_string_name+
+            " / pipe "+To_text(pipe_index)+
+            " / result="+result_text);
+    }
+}
+
+
+// ------------------------------------------------------------------
+// PROCESSING HOOKS
+void Process_current_pit(
+    Element current_string,
+    Integer current_pit_index,
+    Integer current_network_pit_id)
+{
+    Reset_current_pit_context();
+
+    QA_pit_count = QA_pit_count + 1;
+
+    QA_current_network_pit_id = current_network_pit_id;
+    QA_current_pit_index = current_pit_index;
+
+    if(Get_name(current_string,QA_current_string_name)!=0)
+    {
+        QA_current_string_name = "<name unavailable>";
+    }
+
+    if(
+        Get_drainage_pit_name(
+            current_string,
+            current_pit_index,
+            QA_current_pit_name)!=0)
+    {
+        QA_current_pit_name = "<pit name unavailable>";
+    }
+
+    if(
+        Get_drainage_pit(
+            current_string,
+            current_pit_index,
+            QA_current_pit_x,
+            QA_current_pit_y,
+            QA_current_pit_z)==0)
+    {
+        QA_have_current_pit_coordinates = 1;
+    }
+
+    // Top-level automatically calculated pit attribute.
+    // Do not calculate depth and do not read /network attributes.
+    if(
+        Get_drainage_pit_attribute(
+            current_string,
+            current_pit_index,
+            "pit depth",
+            QA_current_pit_depth)==0)
+    {
+        QA_have_current_pit_depth = 1;
+    }
+    else
+    {
+        QA_pit_depth_missing_count =
+            QA_pit_depth_missing_count + 1;
+
+        if(DEBUG_NETWORK_RELATIONSHIPS)
+        {
+            Output_line(
+                "  PIT DATA: top-level pit depth unavailable for "+
+                QA_current_string_name+
+                " / "+
+                QA_current_pit_name);
+        }
+    }
+
+    if(
+        Get_drainage_pit_hgl(
+            current_string,
+            current_pit_index,
+            QA_current_pit_hgl)==0)
+    {
+        QA_have_current_pit_hgl = 1;
+    }
+
+    if(
+        Get_drainage_pit_attribute(
+            current_string,
+            current_pit_index,
+            "sump level",
+            QA_current_pit_sump_level)==0)
+    {
+        QA_have_current_pit_sump_level = 1;
+    }
+
+    Text pit_nominal_diameter_text="";
+
+    if(
+        Get_drainage_pit_attribute(
+            current_string,
+            current_pit_index,
+            "lplot Nominal Diameter",
+            pit_nominal_diameter_text)==0)
+    {
+        if(
+            From_text(
+                pit_nominal_diameter_text,
+                QA_current_pit_nominal_diameter)==0)
+        {
+            QA_have_current_pit_nominal_diameter = 1;
+        }
+    }
+    else if(
+        Get_drainage_pit_attribute(
+            current_string,
+            current_pit_index,
+            "lplot Nominal Diameter",
+            QA_current_pit_nominal_diameter)==0)
+    {
+        QA_have_current_pit_nominal_diameter = 1;
+    }
+
+    QA_start_current_pit_report();
+
+    if(DEBUG_NETWORK_RELATIONSHIPS)
+    {
+        Text depth_text="<unavailable>";
+        Text pit_diameter_text="<unavailable>";
+
+        if(QA_have_current_pit_depth)
+        {
+            depth_text=To_text(QA_current_pit_depth,3)+" m";
+        }
+
+        if(QA_have_current_pit_nominal_diameter)
+        {
+            pit_diameter_text=
+                To_text(QA_current_pit_nominal_diameter,0)+" mm";
+        }
+
+        Output_line("  PIT DATA:");
+        Output_line("    depth="+depth_text);
+        Output_line("    pit diameter="+pit_diameter_text);
+    }
+}
+
+
+void Process_same_string_upstream_pipe(
+    Element current_string,
+    Integer current_pit_index,
+    Integer current_network_pit_id,
+    Element pipe_string,
+    Integer pipe_index,
+    Integer network_pipe_id,
+    Integer upstream_network_pit_id,
+    Integer downstream_network_pit_id)
+{
+
+    QA_same_string_upstream_count=
+        QA_same_string_upstream_count+1;
+
+    Check_direct_upstream_pipe(
+        current_string,
+        current_pit_index,
+        current_network_pit_id,
+        pipe_string,
+        pipe_index,
+        network_pipe_id,
+        1);
+}
+
+void Process_cross_string_incoming_pipe(
+    Element current_string,
+    Integer current_pit_index,
+    Integer current_network_pit_id,
+    Element pipe_string,
+    Integer pipe_index,
+    Integer network_pipe_id,
+    Integer upstream_network_pit_id,
+    Integer downstream_network_pit_id)
+{
+
+    QA_cross_string_incoming_count=
+        QA_cross_string_incoming_count+1;
+
+    Check_direct_upstream_pipe(
+        current_string,
+        current_pit_index,
+        current_network_pit_id,
+        pipe_string,
+        pipe_index,
+        network_pipe_id,
+        2);
+}
+
+void Process_downstream_pipe(
+    Element current_string,
+    Integer current_pit_index,
+    Integer current_network_pit_id,
+    Element pipe_string,
+    Integer pipe_index,
+    Integer network_pipe_id,
+    Integer upstream_network_pit_id,
+    Integer downstream_network_pit_id)
+{
+
+    QA_downstream_pipe_count=
+        QA_downstream_pipe_count+1;
+
+    QA_have_downstream_pipe=1;
+    QA_downstream_string=pipe_string;
+    QA_downstream_pipe_index=pipe_index;
+    QA_downstream_network_pipe_id=network_pipe_id;
+
+    if(
+        Get_drainage_pipe_nominal_diameter(
+            pipe_string,
+            pipe_index,
+            QA_downstream_nominal_diameter)==0)
+    {
+        QA_have_downstream_nominal_diameter=1;
+    }
+
+    if(
+        Get_drainage_pipe_attribute(
+            pipe_string,
+            pipe_index,
+            "invert us",
+            QA_downstream_invert_us)==0)
+    {
+        QA_have_downstream_invert_us=1;
+    }
+
+    if(
+        Get_drainage_pipe_attribute(
+            pipe_string,
+            pipe_index,
+            "calculated pipe length",
+            QA_downstream_pipe_length)==0)
+    {
+        QA_have_downstream_pipe_length=1;
+    }
+
+    // WW CoP 5.3.8.3 - maximum spacing/pipe length between pits.
+    if(
+        QA_have_downstream_pipe_length &&
+        QA_downstream_pipe_length>100.0)
+    {
+        QA_downstream_check_failure_count=
+            QA_downstream_check_failure_count+1;
+
+        Text downstream_pipe_name="<pipe name unavailable>";
+
+        if(
+            Get_drainage_pipe_attribute(
+                pipe_string,
+                pipe_index,
+                "pipe name",
+                downstream_pipe_name)!=0)
+        {
+            downstream_pipe_name="<pipe name unavailable>";
+        }
+
+        QA_report_error(
+            "WW CoP 5.3.8.3 pipe length exceeds 100 m"+
+            " [pipe name="+downstream_pipe_name+
+            "; found="+To_text(QA_downstream_pipe_length,1)+" m]"
+        );
+    }
+}
+
+// ------------------------------------------------------------------
+// NETWORK TRAVERSAL
+// ------------------------------------------------------------------
+
+Integer Traverse_drainage_network(
+    Model selected_model)
+{
+    Drainage_Network drainage_network;
+
+    Integer rc=
+        Get_drainage_network(
+            selected_model,
+            drainage_network);
+
+    if(rc!=0)
+    {
+        Output_line(
+            "ERROR: Get_drainage_network failed. Return: "+
+            To_text(rc));
+
+        Null(drainage_network);
+        return rc;
+    }
+
+    Integer network_pit_count=0;
+    Integer network_pipe_count=0;
+
+    rc=
+        Get_drainage_network_number_of_pits(
+            drainage_network,
+            network_pit_count);
+
+    if(rc!=0)
+    {
+        Output_line(
+            "ERROR: Unable to retrieve network pit count. Return: "+
+            To_text(rc));
+
+        Null(drainage_network);
+        return rc;
+    }
+
+    rc=
+        Get_drainage_network_number_of_pipes(
+            drainage_network,
+            network_pipe_count);
+
+    if(rc!=0)
+    {
+        Output_line(
+            "ERROR: Unable to retrieve network pipe count. Return: "+
+            To_text(rc));
+
+        Null(drainage_network);
+        return rc;
+    }
+
+    if(network_pit_count<1)
+    {
+        Output_line("No network pits were found.");
+        Null(drainage_network);
+        return 0;
+    }
+
+    Integer network_pit_ids[network_pit_count];
+    Integer network_pit_types[network_pit_count];
+    Integer returned_pits=0;
+
+    rc=
+        Get_drainage_network_pits(
+            drainage_network,
+            network_pit_ids,
+            network_pit_types,
+            network_pit_count,
+            returned_pits);
+
+    if(rc!=0)
+    {
+        Output_line(
+            "ERROR: Unable to enumerate network pits. Return: "+
+            To_text(rc));
+
+        Null(drainage_network);
+        return rc;
+    }
+
+    Integer returned_pipes=0;
+
+    if(network_pipe_count>0)
+    {
+        Integer network_pipe_ids[network_pipe_count];
+        Integer network_pipe_types[network_pipe_count];
+
+        rc=
+            Get_drainage_network_pipes(
+                drainage_network,
+                network_pipe_ids,
+                network_pipe_types,
+                network_pipe_count,
+                returned_pipes);
+
+        if(rc!=0)
+        {
+            Output_line(
+                "ERROR: Unable to enumerate network pipes. Return: "+
+                To_text(rc));
+
+            Null(drainage_network);
+            return rc;
+        }
+
+        Integer pit_number=0;
+
+        for(
+            pit_number=1;
+            pit_number<=returned_pits;
+            pit_number++)
+        {
+            Integer current_network_pit_id=
+                network_pit_ids[pit_number];
+
+            Element current_string;
+            Integer current_pit_index=0;
+
+            rc=
+                Get_drainage_network_pit(
+                    drainage_network,
+                    current_network_pit_id,
+                    current_string,
+                    current_pit_index);
+
+            if(rc!=0)
+            {
+                Output_line(
+                    "WARNING: Unable to resolve network pit ID "+
+                    To_text(current_network_pit_id));
+
                 continue;
             }
 
-            Integer si=1;
-            while(si<=SCOUNT){
+            Uid current_string_uid;
 
-                Element drain = STR_s[si];
+            rc=
+                Get_id(
+                    current_string,
+                    current_string_uid);
 
-                Text sname="";
-                Get_name(drain, sname);
+            if(rc!=0)
+            {
+                Output_line(
+                    "WARNING: Unable to retrieve the owning string UID for network pit "+
+                    To_text(current_network_pit_id));
 
-                /* per-string checks */
-                process_ww_string(drain, si);
-                si = si + 1;
+                Null(current_string);
+                continue;
             }
 
-            build_log(lb_report);
+            Text current_string_name="";
+            Text current_pit_name="";
 
-            Set_data(cmbMsg, "Done. Check report below.", 1);
-            // release per-run handles
-            release_drainage_handles();
-            Null(sel);
-            
-          }
-        }
-        break;
-        default:
-        {
-            if(cmd == "Finish") doit = 0;
-        }
-        break;
+            if(Get_name(current_string,current_string_name)!=0)
+            {
+                current_string_name="<name unavailable>";
+            }
+
+            if(
+                Get_drainage_pit_name(
+                    current_string,
+                    current_pit_index,
+                    current_pit_name)!=0)
+            {
+                current_pit_name="<pit name unavailable>";
+            }
+
+            if(DEBUG_NETWORK_RELATIONSHIPS)
+            {
+                Output_line("");
+                Output_line(
+                    "PIT: "+
+                    current_string_name+
+                    " / index "+
+                    To_text(current_pit_index)+
+                    " / "+
+                    current_pit_name+
+                    " / network ID "+
+                    To_text(current_network_pit_id));
+            }
+
+            Process_current_pit(
+                current_string,
+                current_pit_index,
+                current_network_pit_id);
+
+            Integer same_string_upstream_count=0;
+            Integer cross_string_incoming_count=0;
+            Integer downstream_pipe_count=0;
+            Integer pipe_number=0;
+
+            // Resolve the downstream pipe first so every incoming-pipe check
+            // has the correct outlet diameter and invert context.
+            for(
+                pipe_number=1;
+                pipe_number<=returned_pipes;
+                pipe_number++)
+            {
+                Element downstream_string;
+                Integer downstream_pipe_index=0;
+                Integer downstream_us_pit_id=0;
+                Integer downstream_ds_pit_id=0;
+
+                rc=
+                    Get_drainage_network_pipe(
+                        drainage_network,
+                        network_pipe_ids[pipe_number],
+                        downstream_string,
+                        downstream_pipe_index,
+                        downstream_us_pit_id,
+                        downstream_ds_pit_id);
+
+                if(rc!=0)
+                {
+                    continue;
+                }
+
+                if(downstream_us_pit_id==current_network_pit_id)
+                {
+                    Text downstream_string_name="";
+
+                    if(
+                        Get_name(
+                            downstream_string,
+                            downstream_string_name)!=0)
+                    {
+                        downstream_string_name="<name unavailable>";
+                    }
+
+                    downstream_pipe_count++;
+
+                    if(DEBUG_NETWORK_RELATIONSHIPS)
+                    {
+                        Output_line(
+                            "  DOWNSTREAM: "+
+                            downstream_string_name+
+                            " / pipe "+
+                            To_text(downstream_pipe_index)+
+                            " / network pipe "+
+                            To_text(network_pipe_ids[pipe_number]));
+                    }
+
+                    Process_downstream_pipe(
+                        current_string,
+                        current_pit_index,
+                        current_network_pit_id,
+                        downstream_string,
+                        downstream_pipe_index,
+                        network_pipe_ids[pipe_number],
+                        downstream_us_pit_id,
+                        downstream_ds_pit_id);
+                }
+
+                Null(downstream_string);
+            }
+
+            // Process every direct incoming pipe after the downstream context.
+            for(
+                pipe_number=1;
+                pipe_number<=returned_pipes;
+                pipe_number++)
+            {
+                Element pipe_string;
+                Integer pipe_index=0;
+                Integer upstream_network_pit_id=0;
+                Integer downstream_network_pit_id=0;
+
+                rc=
+                    Get_drainage_network_pipe(
+                        drainage_network,
+                        network_pipe_ids[pipe_number],
+                        pipe_string,
+                        pipe_index,
+                        upstream_network_pit_id,
+                        downstream_network_pit_id);
+
+                if(rc!=0)
+                {
+                    continue;
+                }
+
+                Uid pipe_string_uid;
+                Integer pipe_uid_rc=
+                    Get_id(
+                        pipe_string,
+                        pipe_string_uid);
+
+                Text pipe_string_name="";
+
+                if(Get_name(pipe_string,pipe_string_name)!=0)
+                {
+                    pipe_string_name="<name unavailable>";
+                }
+
+                if(downstream_network_pit_id==current_network_pit_id)
+                {
+                    Integer same_string_upstream=0;
+
+                    if(
+                        pipe_uid_rc==0 &&
+                        pipe_string_uid==current_string_uid &&
+                        pipe_index==current_pit_index)
+                    {
+                        same_string_upstream=1;
+                    }
+
+                    if(same_string_upstream)
+                    {
+                        same_string_upstream_count++;
+
+                        if(DEBUG_NETWORK_RELATIONSHIPS)
+                        {
+                            Output_line(
+                                "  UPSTREAM SAME STRING: "+
+                                pipe_string_name+
+                                " / pipe "+
+                                To_text(pipe_index)+
+                                " / network pipe "+
+                                To_text(network_pipe_ids[pipe_number]));
+                        }
+
+                        Process_same_string_upstream_pipe(
+                            current_string,
+                            current_pit_index,
+                            current_network_pit_id,
+                            pipe_string,
+                            pipe_index,
+                            network_pipe_ids[pipe_number],
+                            upstream_network_pit_id,
+                            downstream_network_pit_id);
+                    }
+                    else
+                    {
+                        cross_string_incoming_count++;
+
+                        if(DEBUG_NETWORK_RELATIONSHIPS)
+                        {
+                            Output_line(
+                                "  INCOMING OTHER STRING: "+
+                                pipe_string_name+
+                                " / pipe "+
+                                To_text(pipe_index)+
+                                " / network pipe "+
+                                To_text(network_pipe_ids[pipe_number]));
+                        }
+
+                        Process_cross_string_incoming_pipe(
+                            current_string,
+                            current_pit_index,
+                            current_network_pit_id,
+                            pipe_string,
+                            pipe_index,
+                            network_pipe_ids[pipe_number],
+                            upstream_network_pit_id,
+                            downstream_network_pit_id);
+                    }
+                }
+
+                if(pipe_uid_rc==0)
+                {
+                    Null(pipe_string_uid);
+                }
+
+                Null(pipe_string);
+            }
+
+            QA_finalise_current_pit_report();
+
+            Null(QA_downstream_string);
+
+            if(DEBUG_NETWORK_RELATIONSHIPS)
+            {
+                Output_line(
+                    "  COUNTS: same-string upstream="+
+                    To_text(same_string_upstream_count)+
+                    ", cross-string incoming="+
+                    To_text(cross_string_incoming_count)+
+                    ", all direct upstream="+
+                    To_text(
+                        same_string_upstream_count+
+                        cross_string_incoming_count)+
+                    ", downstream="+
+                    To_text(downstream_pipe_count));
+            }
+
+            Null(current_string_uid);
+            Null(current_string);
         }
     }
+    else
+    {
+        Output_line("The drainage network contains no pipes.");
+    }
+
+    if(DEBUG_NETWORK_RELATIONSHIPS)
+    {
+        Output_line("");
+        Output_line(
+            "NETWORK SUMMARY: pits="+
+            To_text(returned_pits)+
+            ", pipes="+
+            To_text(returned_pipes));
+    }
+
+    Null(drainage_network);
+    return 0;
 }
-void main(){
 
-    // do some checks before you go to the main panel
+/* ============================ Panel ============================ */void mainPanel()
+{
+  Text panelName="ACCoP Wastewater QA Check";
+  Panel              panel      = Create_panel              (panelName, TRUE);
+  Vertical_Group     vgroup     = Create_vertical_group     (-1             );
+  Colour_Message_Box cmbMsg     = Create_colour_message_box (""             );
+  Log_Box            lb_report  = Create_log_box            ("ACCoP Wastewater Report",90, 14);
 
+  ///////////////////CREATE INPUT WIDGETS////////////////
+  Model_Box mb_drainage_model =
+      Create_model_box(
+          "Drainage model",
+          cmbMsg,
+          CHECK_MODEL_MUST_EXIST);
 
+  ///////////////ADDING BUTTONS ALONG THE BOTTOM///////////////////////////
+  Horizontal_Group bgroup = Create_button_group();
+  Button process     = Create_button       ("&Process" ,"process");
+  Button finish      = Create_finish_button("Finish"   ,"Finish" );
+  Button help_button = Create_help_button  (panel      ,"Help"   );
+  Append(process      ,bgroup);
+  Append(finish       ,bgroup);
+  Append(help_button  ,bgroup);
+
+  ///////////////ADDING WIDGETS TO PANEL///////////////////////////
+  Append(mb_drainage_model, vgroup);
+  Append(cmbMsg,            vgroup);
+  Append(lb_report,         vgroup);
+  Append(bgroup,            vgroup);
+  Append(vgroup,            panel);
+  Show_widget(panel);
+
+  Integer doit=1;
+  while(doit)
+  {
+      Text cmd="";
+      Text msg="";
+      Integer id;
+      Integer ret=Wait_on_widgets(id,cmd,msg);
+
+      switch(cmd)
+      {
+      case "keystroke" :
+      case "set_focus"  :
+      case "kill_focus" :
+      {
+          continue;
+      }
+      break;
+
+      case "CodeShutdown" :
+      {
+          Set_exit_code(cmd);
+      }
+      break;
+      }
+
+      switch(id)
+      {
+      case Get_id(panel) :
+      {
+          if(cmd=="Panel Quit") doit=0;
+          if(cmd=="Panel About") about_panel(panel);
+      }
+      break;
+
+      case Get_id(process) :
+      {
+          if(cmd=="process")
+          {
+              Clear(lb_report);
+
+              Model selected_model;
+              Text model_name="";
+              Integer validate_rc=
+                  Validate(
+                      mb_drainage_model,
+                      CHECK_MODEL_MUST_EXIST,
+                      selected_model);
+
+              if(validate_rc!=MODEL_EXISTS)
+              {
+                  if(validate_rc==NO_MODEL)
+                  {
+                      Set_data(
+                          cmbMsg,
+                          "The selected model does not exist.",
+                          2);
+                  }
+                  else if(validate_rc==NO_NAME)
+                  {
+                      Set_data(
+                          cmbMsg,
+                          "Select a drainage model.",
+                          2);
+                  }
+                  else if(validate_rc==0)
+                  {
+                      Set_data(
+                          cmbMsg,
+                          "Drastic error validating the model.",
+                          2);
+                  }
+                  else
+                  {
+                      Set_data(
+                          cmbMsg,
+                          "Unexpected model validation result: "+
+                          To_text(validate_rc),
+                          2);
+                  }
+
+                  Null(QA_downstream_string);
+              Null(selected_model);
+                  continue;
+              }
+
+              if(Get_name(selected_model,model_name)!=0)
+              {
+                  model_name="<model name unavailable>";
+              }
+
+              if(DEBUG_NETWORK_RELATIONSHIPS)
+              {
+                  Output_line("");
+                  Output_line("==================================================");
+                  Output_line("MODEL: "+model_name);
+                  Output_line("==================================================");
+              }
+
+              QA_pit_count=0;
+              QA_pit_depth_missing_count=0;
+              QA_same_string_upstream_count=0;
+              QA_cross_string_incoming_count=0;
+              QA_same_string_check_failure_count=0;
+              QA_cross_string_check_failure_count=0;
+              QA_downstream_pipe_count=0;
+              QA_downstream_check_failure_count=0;
+              QA_report_current_pit_has_error=0;
+              QA_report_error_pit_count=0;
+
+              QA_start_canonical_report(
+                  lb_report,
+                  model_name);
+
+              Integer traversal_rc=
+                  Traverse_drainage_network(
+                      selected_model);
+
+              if(traversal_rc==0)
+              {
+                  Set_data(
+                      cmbMsg,
+                      "Wastewater QA completed: "+
+                      model_name+
+                      " [canonical pits="+To_text(QA_pit_count)+
+                      "; same-string upstream="+To_text(QA_same_string_upstream_count)+
+                      "; cross-string incoming="+To_text(QA_cross_string_incoming_count)+
+                      "; same-string flagged="+To_text(QA_same_string_check_failure_count)+
+                      "; cross-string flagged="+To_text(QA_cross_string_check_failure_count)+
+                      "; downstream pipes="+To_text(QA_downstream_pipe_count)+
+                      "; downstream length flagged="+To_text(QA_downstream_check_failure_count)+
+                      "; pits flagged="+To_text(QA_report_error_pit_count)+
+                      "; missing pit depth="+To_text(QA_pit_depth_missing_count)+"]",
+                      1);
+              }
+              else
+              {
+                  Set_data(
+                      cmbMsg,
+                      "Network traversal failed. Return: "+
+                      To_text(traversal_rc),
+                      2);
+              }
+
+              Null(QA_downstream_string);
+              Null(selected_model);
+          }
+      }
+      break;
+
+      default :
+      {
+          if(cmd=="Finish") doit=0;
+      }
+      break;
+      }
+  }
+
+  Null(QA_downstream_string);
+}
+
+void main()
+{
     mainPanel();
 }
-/*---------------------------------------------------------------------
-**   Macro:   ACCoP_WW_Check.4dm*/
