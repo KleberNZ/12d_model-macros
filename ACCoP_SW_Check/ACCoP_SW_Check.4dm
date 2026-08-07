@@ -108,97 +108,212 @@
 }
 
 /* ============================ Helpers =========================== */
-/* ---------------- SW05 required size (minimal table retained) ---------------- */
+/* ---------------- SW05 / preliminary required MH size ----------------
+ *
+ * Returns the preliminary minimum manhole riser diameter in mm.
+ *
+ * Return value:
+ *   > 0  = required MH diameter in mm
+ *     0  = Specific Design / unsupported DN
+ *
+ * Basis:
+ *   - DN 450 to DN 1050: Auckland Council SW05 table values.
+ *   - DN 225, 300 and 375: preliminary practical sizes developed from
+ *     the SW05 minimum benching centreline radius of 2.5 x outlet DN.
+ *   - DN 675: preliminary interpolated row.
+ *
+ * Deflection bands use lower-bound banding:
+ *   0° column  : deflection < 30°
+ *   30° column : 30° <= deflection < 45°
+ *   45° column : 45° <= deflection < 60°
+ *   60° column : 60° <= deflection < 75°
+ *   75° column : 75° <= deflection < 90°
+ *   90° column : deflection >= 90°
+ *
+ * Note:
+ *   Values for DN 225, 300, 375 and 675 are preliminary design guidance
+ *   and should be confirmed by plan geometry, pipe penetration,
+ *   structural, access and constructability checks.
+ * -------------------------------------------------------------------- */
 Integer _sw05_required_mm(Real outlet_dn, Real us_def_deg, Real pit_depth_m)
 {
-    // 12dPL implicit conversion
-    Integer dn = outlet_dn + 0.5;
-    // Round deflection to nearest whole degree
-    Integer def = us_def_deg + 0.5;
+    // Round outlet diameter and deflection to nearest whole number.
+    Integer dn  = outlet_dn + 0.5;
+    Integer def = Absolute(us_def_deg) + 0.5;
 
-    // DN > 1050 => Specific Design
-    if(dn > 1050) return 0;
-
-    // Small pipe shallow depth rule
-    if(dn < 450 && pit_depth_m < 4.0) return 1050;
+    // Outside the supported SW05 / preliminary table range.
+    if(dn > 1050)
+        return 0;
 
     // --------------------------------------------------
     // Deflection column index (1..6)
+    //
     // 1 = 0°
     // 2 = 30°
     // 3 = 45°
     // 4 = 60°
     // 5 = 75°
     // 6 = 90°
+    // --------------------------------------------------
+
+    Integer col = 6; // Default to 90° or greater.
+
+    if(def < 30)
+        col = 1;
+    else if(def < 45)
+        col = 2;
+    else if(def < 60)
+        col = 3;
+    else if(def < 75)
+        col = 4;
+    else if(def < 90)
+        col = 5;
+
+    // --------------------------------------------------
+    // DN row index (1..11)
     //
-    // Table uses LOWER-BOUND banding
-    // --------------------------------------------------
-
-    Integer col = 6; // default 90°
-
-    if(def < 30.0)       col = 1;
-    else if(def < 45.0)  col = 2;
-    else if(def < 60.0)  col = 3;
-    else if(def < 75.0)  col = 4;
-    else if(def < 90.0)  col = 5;
-
-    // DN row index (1..7)
-    Integer row = 0;
-    if(dn == 450)  row = 1;
-    if(dn == 525)  row = 2;
-    if(dn == 600)  row = 3;
-    if(dn == 750)  row = 4;
-    if(dn == 825)  row = 5;
-    if(dn == 900)  row = 6;
-    if(dn == 1050) row = 7;
-
-    if(row == 0) return 0; // unknown DN => SD
-
-    // --------------------------------------------------
-    // 1D lookup table (7 rows × 6 cols = 42 values)
     // Row order:
-    // 450,525,600,750,825,900,1050
+    // 225, 300, 375, 450, 525, 600,
+    // 675, 750, 825, 900, 1050
+    // --------------------------------------------------
+
+    Integer row = 0;
+
+    if(dn == 225)  row = 1;
+    if(dn == 300)  row = 2;
+    if(dn == 375)  row = 3;
+    if(dn == 450)  row = 4;
+    if(dn == 525)  row = 5;
+    if(dn == 600)  row = 6;
+    if(dn == 675)  row = 7;
+    if(dn == 750)  row = 8;
+    if(dn == 825)  row = 9;
+    if(dn == 900)  row = 10;
+    if(dn == 1050) row = 11;
+
+    // Unsupported or non-standard DN requires specific design.
+    if(row == 0)
+        return 0;
+
+    // --------------------------------------------------
+    // 1D lookup table: 11 rows x 6 columns = 66 values
     //
-    // Col order:
-    // 0°,30°,45°,60°,75°,90°
+    // Column order:
+    // 0°, 30°, 45°, 60°, 75°, 90°
     //
     // SD = 0
     // --------------------------------------------------
 
-    Integer table[42];
+    Integer table[66];
 
-    // ---- 450 ----
-    table[ 1]=1050; table[ 2]=1050; table[ 3]=1050;
-    table[ 4]=1350; table[ 5]=1800; table[ 6]=2300;
+    // ---- DN 225: preliminary practical sizes ----
+    table[ 1] = 1050;
+    table[ 2] = 1050;
+    table[ 3] = 1050;
+    table[ 4] = 1050;
+    table[ 5] = 1050;
+    table[ 6] = 1050;
 
-    // ---- 525 ----
-    table[ 7]=1050; table[ 8]=1050; table[ 9]=1200;
-    table[10]=1500; table[11]=2050; table[12]=0;
+    // ---- DN 300: preliminary practical sizes ----
+    table[ 7] = 1050;
+    table[ 8] = 1050;
+    table[ 9] = 1050;
+    table[10] = 1050;
+    table[11] = 1050;
+    table[12] = 1350;
 
-    // ---- 600 ----
-    table[13]=1050; table[14]=1050; table[15]=1350;
-    table[16]=1800; table[17]=2300; table[18]=0;
+    // ---- DN 375: preliminary practical sizes ----
+    table[13] = 1050;
+    table[14] = 1050;
+    table[15] = 1050;
+    table[16] = 1200;
+    table[17] = 1350;
+    table[18] = 1800;
 
-    // ---- 750 ----
-    table[19]=1050; table[20]=1050; table[21]=1800;
-    table[22]=2300; table[23]=0;    table[24]=0;
+    // ---- DN 450: AC SW05 ----
+    table[19] = 1050;
+    table[20] = 1050;
+    table[21] = 1050;
+    table[22] = 1350;
+    table[23] = 1800;
+    table[24] = 2300;
 
-    // ---- 825 ----
-    table[25]=1200; table[26]=1200; table[27]=1800;
-    table[28]=0;    table[29]=0;    table[30]=0;
+    // ---- DN 525: AC SW05 ----
+    table[25] = 1050;
+    table[26] = 1050;
+    table[27] = 1200;
+    table[28] = 1500;
+    table[29] = 2050;
+    table[30] = 0;
 
-    // ---- 900 ----
-    table[31]=1200; table[32]=1200; table[33]=2050;
-    table[34]=0;    table[35]=0;    table[36]=0;
+    // ---- DN 600: AC SW05 ----
+    table[31] = 1050;
+    table[32] = 1050;
+    table[33] = 1350;
+    table[34] = 1800;
+    table[35] = 2300;
+    table[36] = 0;
 
-    // ---- 1050 ----
-    table[37]=1500; table[38]=1500; table[39]=2300;
-    table[40]=0;    table[41]=0;    table[42]=0;
+    // ---- DN 675: preliminary interpolated sizes ----
+    table[37] = 1050;
+    table[38] = 1050;
+    table[39] = 1500;
+    table[40] = 2050;
+    table[41] = 2300;
+    table[42] = 0;
+
+    // ---- DN 750: AC SW05 ----
+    table[43] = 1050;
+    table[44] = 1050;
+    table[45] = 1800;
+    table[46] = 2300;
+    table[47] = 0;
+    table[48] = 0;
+
+    // ---- DN 825: AC SW05 ----
+    table[49] = 1200;
+    table[50] = 1200;
+    table[51] = 1800;
+    table[52] = 0;
+    table[53] = 0;
+    table[54] = 0;
+
+    // ---- DN 900: AC SW05 ----
+    table[55] = 1200;
+    table[56] = 1200;
+    table[57] = 2050;
+    table[58] = 0;
+    table[59] = 0;
+    table[60] = 0;
+
+    // ---- DN 1050: AC SW05 ----
+    table[61] = 1500;
+    table[62] = 1500;
+    table[63] = 2300;
+    table[64] = 0;
+    table[65] = 0;
+    table[66] = 0;
 
     Integer idx = (row - 1) * 6 + col;
+    Integer required_mm = table[idx];
 
-    return table[idx];
+    // Retain the shallow small-pipe rule as a minimum requirement,
+    // rather than returning 1050 before checking the deflection table.
+    //
+    // This is important because, for example, a shallow DN 375 pipe
+    // at 90° still requires the preliminary 1800 mm manhole.
+    if(required_mm > 0 &&
+       dn < 450 &&
+       pit_depth_m < 4.0 &&
+       required_mm < 1050)
+    {
+        required_mm = 1050;
+    }
+
+    return required_mm;
 }
+
+
 void Output_line(Text text)
 {
     Print(text);
