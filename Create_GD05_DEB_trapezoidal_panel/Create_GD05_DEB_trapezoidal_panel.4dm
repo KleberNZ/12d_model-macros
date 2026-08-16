@@ -48,7 +48,7 @@ void mainPanel(){
     Colour_Message_Box cmbMsg = Create_colour_message_box (""         );
 
     ///////////////////CREATE INPUT WIDGETS////////////////
-    //TODO: create some input fields
+    //create some input fields
     Model_Box mb_output_model = Create_model_box("Output model",cmbMsg,CHECK_MODEL_CREATE);
     Name_Box  nb_deb_name     = Create_name_box ("Output DEB name",cmbMsg);
 
@@ -84,7 +84,7 @@ void mainPanel(){
     Append(help_button ,bgroup);
 
     ///////////////ADDING WIDGETS TO PANEL///////////////////////////
-    //TODO: add your widgets to vgroup
+    //add your widgets to vgroup
     Append(mb_output_model ,vgroup);
     Append(nb_deb_name     ,vgroup);
     Append(xyz_origin      ,vgroup);
@@ -570,7 +570,7 @@ void mainPanel(){
 // ----------------------------- MAIN -----------------------------
 void main(){
 
-    //TODO: do pre-panel checks here
+    //do pre-panel checks here
 
     mainPanel();
 }

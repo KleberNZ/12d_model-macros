@@ -60,7 +60,7 @@ void mainPanel(){
     Colour_Message_Box cmbMsg = Create_colour_message_box (""         );
 
     ///////////////////CREATE INPUT WIDGETS////////////////
-    //TODO: create some input fields
+    //create some input fields
     Choice_Box cb_device_type = Create_choice_box("Device Type",cmbMsg);
     Text device_choices[2];
     device_choices[1] = "SRP";
@@ -97,7 +97,7 @@ void mainPanel(){
     Append(finish       ,bgroup);
     Append(help_button  ,bgroup);
     ///////////////ADDING WIDGETS TO PANEL///////////////////////////
-    //TODO: add your widgets to vgroup
+    //add your widgets to vgroup
     Vertical_Group vg_device          = Create_vertical_group(2);
     Vertical_Group vg_location_levels = Create_vertical_group(2);
     Vertical_Group vg_srp_shape       = Create_vertical_group(2);
@@ -187,7 +187,7 @@ void mainPanel(){
         {
             if(cmd == "process")
             {
-                //TODO: declare your widget variables
+                //declare your widget variables
                 Text selected_device;
                 if(Validate(cb_device_type,selected_device)==FALSE) break;
 
@@ -227,7 +227,7 @@ void mainPanel(){
                     if(Validate(rb_forebay_width,forebay_width)==FALSE) break;
                 }
 
-                //TODO: validate widgets
+                //validate widgets
                 if(selected_device != "SRP" && selected_device != "DEB")
                 {
                     Set_data(cmbMsg,"Device Type must be SRP or DEB");
@@ -263,7 +263,7 @@ void mainPanel(){
                     break;
                 }
 
-                //TODO: do calc
+                //do calc
 
                 if(selected_device == "SRP")
                 {

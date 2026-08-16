@@ -49,7 +49,7 @@ void mainPanel(){
     Colour_Message_Box cmbMsg = Create_colour_message_box (""         );
 
     ///////////////////CREATE INPUT WIDGETS////////////////
-    //TODO: create some input fields
+    //create some input fields
     Source_Box sb_source = Create_source_box("Super Strings", cmbMsg, 0);
     Weight_Box wb_weight = Create_weight_box("Weight", cmbMsg);
 
@@ -64,7 +64,7 @@ void mainPanel(){
     Append(help_button ,bgroup);
 
     ///////////////ADDING WIDGETS TO PANEL///////////////////////////
-    //TODO: add your widgets to vgroup
+    //add your widgets to vgroup
 
     Append(sb_source,vgroup);
     Append(wb_weight,vgroup);
@@ -113,7 +113,7 @@ void mainPanel(){
         {
             if(cmd == "process")
             {
-                //TODO: declare your widget variables
+                //declare your widget variables
                 Dynamic_Element de_source;
                 if (Validate(sb_source, de_source) == FALSE)
                 {
@@ -135,7 +135,7 @@ void mainPanel(){
                 {
                     break;
                 }
-                //TODO: do calc
+                //do calc
                 Integer modified = 0;
                 Integer skipped = 0;
 
@@ -176,7 +176,7 @@ void mainPanel(){
 // ----------------------------- MAIN -----------------------------
 void main(){
 
-    //TODO: do pre-panel checks here
+    //do pre-panel checks here
 
     mainPanel();
 }

@@ -554,13 +554,13 @@ void mainPanel(){
         {
             if(cmd == "process")
             {
-                //TODO: declare your widget variables
+                //declare your widget variables
 
                 Model selected_model;
                 Text model_name="";
                 Integer validate_rc=0;
 
-                //TODO: validate widgets
+                //validate widgets
 
                 validate_rc=
                     Validate(
@@ -604,7 +604,7 @@ void mainPanel(){
                     continue;
                 }
 
-                //TODO: do calc
+                //do calc
 
                 if(Get_name(selected_model,model_name)!=0)
                 {
