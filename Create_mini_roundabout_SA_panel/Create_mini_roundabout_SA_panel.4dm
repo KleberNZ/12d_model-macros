@@ -14,7 +14,8 @@
 **
 **  Create and calculate the mini-roundabout kerb return Super Alignment,
 **  including horizontal geometry, vertical tie-ins, model assignment,
-**  undo support and user feedback.
+**  undo support and user feedback. Also creates a user-defined diameter quarter-arc roundabout
+**  Super Alignment from the selected approach/departure intersection.
 **---------------------------------------------------------------------
 **   Update/Modification
 **
@@ -30,7 +31,7 @@
 #define ECHO_DEBUG_FILE 0
 #define ECHO_LINE_NO    0
 
-#define BUILD "version.0.001"
+#define BUILD "version.0.003"
 
 // ----------------------------- INCLUDES -----------------------------
 #include "standard_library.H"
@@ -185,14 +186,90 @@ Integer build_free_arc_radius_part(Integer part_id, Real radius, Text &part_text
     return 0;
 }
 
-// helper: build computator_vertical_offset_part text
-Integer build_computator_vertical_offset_part(Integer part_id, Text part_name, Text reference_text, Real slope, Real interval, Integer chainage_direction, Text start_ch_text, Text end_ch_text, Text &part_text)
+// helper: build a quarter-roundabout arc from two selected SAs
+Integer build_horz_arc_2_points_bearing_part(
+    Integer part_id,
+    Text first_reference_text,
+    Text second_reference_text,
+    Real extension_value,
+    Real offset_value,
+    Integer bearing_direction,
+    Integer bearing_segment,
+    Text &part_text
+)
 {
-    Text name_block;
-    Text direction_block;
+    part_text =
+        "computator { "
+        + "id " + To_text(part_id) + " "
+        + "computator_horz_arc_2_points_bearing { "
+        + "valid true "
+        + "at_start true "
 
-    name_block = "";
-    direction_block = "";
+        + "start { "
+        + "computator_horz_point_reference { "
+        + "valid true "
+        + "computator_horz_reference { "
+        + "valid true "
+        + "direction 1 "
+        + "start_ext " + To_text(extension_value,3) + " "
+        + first_reference_text + " "
+        + "cut { "
+        + second_reference_text + " "
+        + "index 0 "
+        + "} "
+        + "} "
+        + "} "
+        + "} "
+
+        + "end { "
+        + "computator_horz_point_reference { "
+        + "valid true "
+        + "offset " + To_text(offset_value,3) + " "
+        + "computator_horz_reference { "
+        + "valid true "
+        + "direction 1 "
+        + first_reference_text + " "
+        + "cut { "
+        + second_reference_text + " "
+        + "index 0 "
+        + "} "
+        + "} "
+        + "} "
+        + "} "
+
+        + "bearing { "
+        + "computator_horz_value_bearing { "
+        + "valid true "
+        + "reference { "
+        + "direction " + To_text(bearing_direction) + " "
+        + "segment " + To_text(bearing_segment) + " "
+        + second_reference_text + " "
+        + "} "
+        + "} "
+        + "} "
+
+        + "} "
+        + "}";
+
+    return 0;
+}
+
+// helper: build computator_vertical_offset part text
+Integer build_computator_vertical_offset_part
+(
+    Integer part_id,
+    Text part_name,
+    Text reference_text,
+    Real slope,
+    Real interval,
+    Integer chainage_direction,
+    Text start_ch_text,
+    Text end_ch_text,
+    Text &part_text
+)
+{
+    Text name_block = "";
+    Text direction_block = "";
 
     if(part_name != "")
     {
@@ -201,7 +278,8 @@ Integer build_computator_vertical_offset_part(Integer part_id, Text part_name, T
 
     if(chainage_direction != 0)
     {
-        direction_block = "chainage_direction " + To_text(chainage_direction) + " ";
+        direction_block =
+            "chainage_direction " + To_text(chainage_direction) + " ";
     }
 
     part_text =
@@ -225,7 +303,6 @@ Integer build_computator_vertical_offset_part(Integer part_id, Text part_name, T
 
     return 0;
 }
-
 // helper: build free_parabola_compound part text
 Integer build_free_parabola_compound_part(Integer part_id, Real ratio, Real length, Text &part_text)
 {
@@ -237,6 +314,31 @@ Integer build_free_parabola_compound_part(Integer part_id, Real ratio, Real leng
         + "}";
 
     return 0;
+}
+
+// helper: set quarter-roundabout extension and offset signs
+Integer apply_roundabout_direction_sign(
+    Integer first_sa_direction,
+    Real roundabout_radius,
+    Real &extension_value,
+    Real &offset_value
+)
+{
+    if(first_sa_direction == -1)
+    {
+        extension_value = Absolute(roundabout_radius);
+        offset_value    = Absolute(roundabout_radius);
+        return 0;
+    }
+
+    if(first_sa_direction == 1)
+    {
+        extension_value = -Absolute(roundabout_radius);
+        offset_value    = -Absolute(roundabout_radius);
+        return 0;
+    }
+
+    return 1;
 }
 
 // helper: apply approach line sign
@@ -401,11 +503,13 @@ void mainPanel(){
 
     Real_Box rb_radius = Create_real_box("Radius",cmbMsg);
     Real_Box rb_arc_length = Create_real_box("Arc Length",cmbMsg);
+    Real_Box rb_roundabout_diameter = Create_real_box("Roundabout Diameter",cmbMsg);
 
     Set_data(rb_tangent_offset, 10.5);
     Set_data(rb_approach_width, 2.7);
     Set_data(rb_departure_width, 2.7);
     Set_data(rb_radius, 4.0);
+    Set_data(rb_roundabout_diameter, 7.0);
     Set_data(rb_arc_length, 4.0);
 
     ///////////////ADDING BUTTONS ALONG THE BOTTOM///////////////////////////
@@ -435,6 +539,7 @@ void mainPanel(){
     Append(curve_row      ,curve_group);
     Append(rb_radius             ,curve_group);
     Append(rb_arc_length         ,curve_group);
+    Append(rb_roundabout_diameter,curve_group);
     Set_border(curve_group,"Curve Parameters");
 
     // Approach section
@@ -558,7 +663,7 @@ void mainPanel(){
                 Real tangent_offset = 0.0;
                 Real radius = 0.0;
                 Real arc_length = 0.0;
-
+                Real roundabout_diameter = 0.0;
                 Text approach_ref = "";
                 Text departure_ref = "";
                 Text part_text = "";
@@ -590,6 +695,9 @@ void mainPanel(){
                 Integer rc6 = Validate(rb_tangent_offset,tangent_offset);
                 Integer rc7 = Validate(rb_radius,radius);
                 Integer rc8 = Validate(rb_arc_length,arc_length);
+                Integer rc9 =
+                    Validate(rb_roundabout_diameter,roundabout_diameter);
+
                 Integer rc_name = Get_data(ib_sa_name,sa_name);
 
                 if(rc_dir1 != 0){Set_data(cmbMsg,"Failed to get approach direction"); continue;}
@@ -605,13 +713,29 @@ void mainPanel(){
                 if(rc6 == FALSE){Set_data(cmbMsg,"Enter a valid tangent offset"); continue;}
                 if(rc7 == FALSE){Set_data(cmbMsg,"Enter a valid radius"); continue;}
                 if(rc8 == FALSE){Set_data(cmbMsg,"Enter a valid arc length"); continue;}
-
+                if(rc9 == FALSE)
+                {
+                    Set_data
+                    (
+                        cmbMsg,
+                        "Enter a valid roundabout diameter"
+                    );
+                    continue;
+                }
                 if(approach_width <= 0.0){Set_data(cmbMsg,"Approach lane width must be greater than zero"); continue;}
                 if(departure_width <= 0.0){Set_data(cmbMsg,"Departure lane width must be greater than zero"); continue;}
                 if(tangent_offset <= 0.0){Set_data(cmbMsg,"Tangent offset must be greater than zero"); continue;}
                 if(radius <= 0.0){Set_data(cmbMsg,"Radius must be greater than zero"); continue;}
                 if(arc_length <= 0.0){Set_data(cmbMsg,"Arc length must be greater than zero"); continue;}
-
+                if(roundabout_diameter <= 0.0)
+                {
+                    Set_data
+                    (
+                        cmbMsg,
+                        "Roundabout diameter must be greater than zero"
+                    );
+                    continue;
+                }
                 if(rc_name != 0 || sa_name == "")
                 {
                     Set_data(cmbMsg,"String Name cannot be blank");
@@ -890,6 +1014,232 @@ void mainPanel(){
 
                 undo_name = "Undo Create Mini Roundabout SA " + sa_name;
                 add_created_sa_undo(undo_name,sa);
+                // =====================================================
+                // Create quarter-arc roundabout Super Alignment
+                // using the same approach and departure selections.
+                // =====================================================
+                {
+                    Element roundabout_sa;
+                    Text roundabout_name = "";
+                    Text rb_part_text = "";
+                    Text rb_vert_text = "";
+                    Text rb_start_ch_text = "";
+                    Text rb_end_ch_text = "";
+                    Text rb_undo_name = "";
+                    Real roundabout_radius =
+                        roundabout_diameter / 2.0;
+
+                    Real roundabout_extension = 0.0;
+                    Real roundabout_offset = 0.0;
+                    Real roundabout_arc_length = Half_pi() * roundabout_radius;
+
+                    Integer roundabout_bearing_direction = 1;
+                    Integer roundabout_bearing_segment = 1;
+
+                    if
+                    (
+                        apply_roundabout_direction_sign
+                        (
+                            approach_dir,
+                            roundabout_radius,
+                            roundabout_extension,
+                            roundabout_offset
+                        ) != 0
+                    )
+                    {
+                        Set_data
+                        (
+                            cmbMsg,
+                            "Invalid first SA direction for roundabout"
+                        );
+                        continue;
+                    }
+
+
+                    roundabout_name = "Mini Roundabout " + approach_name + " " + departure_name + " Inter";
+                    roundabout_sa = Create_super_alignment();
+                    if(Set_name(roundabout_sa,roundabout_name) != 0)
+                    {
+                        Set_data(cmbMsg,"Failed to set roundabout SA name");
+                        continue;
+                    }
+
+                    build_horz_arc_2_points_bearing_part(
+                        100,
+                        approach_ref,
+                        departure_ref,
+                        roundabout_extension,
+                        roundabout_offset,
+                        roundabout_bearing_direction,
+                        roundabout_bearing_segment,
+                        rb_part_text
+                    );
+
+                    if(Super_alignment_horz_part_append(roundabout_sa,rb_part_text) != 0)
+                    {
+                        Set_data(cmbMsg,"Failed to append roundabout horizontal part");
+                        continue;
+                    }
+
+                    if(Calc_super_alignment_horz(roundabout_sa) != 0)
+                    {
+                        Set_data(cmbMsg,"Failed to calculate roundabout horizontal geometry. Confirm the selected SAs intersect");
+                        continue;
+                    }
+
+                    // =====================================================
+                    // Vertical Part 200
+                    // Reference = Approach SA
+                    // =====================================================
+
+                    rb_vert_text =
+                        "computator { "
+                        + "id 200 "
+
+                        + "computator_vert_line_point_grade { "
+                        + "valid true "
+
+                        + "relative_start 0 "
+                        + "relative_end 1 "
+
+                        + "point { "
+                        + "computator_vert_point_cut { "
+                        + "valid true "
+                        + "cut_position 1 "
+                        + approach_ref + " "
+                        + "} "
+                        + "} "
+
+                        + "grade { "
+                        + "computator_vert_value_grade { "
+                        + "valid true "
+                        + "fixed { "
+                        + "value -0.03 "
+                        + "} "
+                        + "} "
+                        + "} "
+
+                        + "} "
+                        + "}";
+
+                    if
+                    (
+                        Super_alignment_vert_part_append
+                        (
+                            roundabout_sa,
+                            rb_vert_text
+                        ) != 0
+                    )
+                    {
+                        Set_data
+                        (
+                            cmbMsg,
+                            "Failed to append roundabout vertical part 200"
+                        );
+                        continue;
+                    }
+
+                    // =====================================================
+                    // Vertical Part 300
+                    // =====================================================
+
+                    build_free_parabola_compound_part
+                    (
+                        300,
+                        0.5,
+                        0.0,
+                        rb_vert_text
+                    );
+
+                    if
+                    (
+                        Super_alignment_vert_part_append
+                        (
+                            roundabout_sa,
+                            rb_vert_text
+                        ) != 0
+                    )
+                    {
+                        Set_data
+                        (
+                            cmbMsg,
+                            "Failed to append roundabout vertical part 300"
+                        );
+                        continue;
+                    }
+
+                    // =====================================================
+                    // Vertical Part 400
+                    // Reference = Departure SA
+                    // =====================================================
+
+                    rb_vert_text =
+                        "computator { "
+                        + "id 400 "
+
+                        + "computator_vert_line_point_grade { "
+                        + "valid true "
+
+                        + "relative_start -1 "
+                        + "relative_end 0 "
+
+                        + "point { "
+                        + "computator_vert_point_cut { "
+                        + "valid true "
+                        + "cut_position 1 "
+                        + departure_ref + " "
+                        + "} "
+                        + "} "
+
+                        + "grade { "
+                        + "computator_vert_value_grade { "
+                        + "valid true "
+                        + "fixed { "
+                        + "value 0.03 "
+                        + "} "
+                        + "} "
+                        + "} "
+
+                        + "} "
+                        + "}";
+
+                    if
+                    (
+                        Super_alignment_vert_part_append
+                        (
+                            roundabout_sa,
+                            rb_vert_text
+                        ) != 0
+                    )
+                    {
+                        Set_data
+                        (
+                            cmbMsg,
+                            "Failed to append roundabout vertical part 400"
+                        );
+                        continue;
+                    }
+
+                    if(Calc_super_alignment_vert(roundabout_sa) != 0)
+                    {
+                        Set_data
+                        (
+                            cmbMsg,
+                            "Failed to calculate roundabout vertical geometry"
+                        );
+                        continue;
+                    }
+
+                    Calc_extent(roundabout_sa);
+                    if(Set_model(roundabout_sa,output_model) != 0)
+                    {
+                        Set_data(cmbMsg,"Failed to place roundabout SA in output model");
+                        continue;
+                    }
+
+                    rb_undo_name = "Undo Create " + roundabout_name;
+                    add_created_sa_undo(rb_undo_name,roundabout_sa);
+                }
 
                 if(get_trailing_counter(sa_name,counter) == 0)
                 {
@@ -903,7 +1253,7 @@ void mainPanel(){
                 Set_data
                 (
                     cmbMsg,
-                    "Created mini roundabout SA: " + output_model_name + " -> " + sa_name
+                    "Created kerb return and quarter-arc roundabout SA: " + output_model_name + " -> " + sa_name
                 );
             }
         }
