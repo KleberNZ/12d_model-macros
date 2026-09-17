@@ -1056,7 +1056,7 @@ void mainPanel(){
                     }
 
 
-                    roundabout_name = "Mini Roundabout " + approach_name + " " + departure_name + " Inter";
+                    roundabout_name = "MiniRB " + approach_name + " " + departure_name + " " + To_text(counter);
                     roundabout_sa = Create_super_alignment();
                     if(Set_name(roundabout_sa,roundabout_name) != 0)
                     {
