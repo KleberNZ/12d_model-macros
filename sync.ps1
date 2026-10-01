@@ -14,6 +14,19 @@ $knowledgeBaseRoot = "C:\Users\kprado\The Neil Group Ltd\12d Macro Knowledge Bas
 
 $userLibRoot = "F:\DATA\12d\15.00\User_Lib"
 
+$excludeListFile = Join-Path $repoRoot "publish_exclude.txt"
+
+$excludeFolders = @()
+
+if (Test-Path $excludeListFile)
+{
+    $excludeFolders = Get-Content $excludeListFile |
+        Where-Object {
+            $_.Trim() -ne "" -and
+            -not $_.StartsWith("#")
+        }
+}
+
 function Ask-YesNo
 {
     param([string]$Prompt)
@@ -33,46 +46,69 @@ try
     Write-Host "=== Publishing to Knowledge Base ==="
     Write-Host ""
 
-    robocopy `
-        $repoRoot `
-        $knowledgeBaseRoot `
-        /E `
-        /MIR `
-        /XD ".git" ".vs" "Test"
+	$robocopyArgs = @(
+		$repoRoot
+		$knowledgeBaseRoot
+		"/E"
+		"/MIR"
+		"/XD"
+		".git"
+		".vs"
+	)
 
-    Write-Host ""
-    Write-Host "=== Publishing .4do files to UserLib ==="
-    Write-Host ""
+	$robocopyArgs += $excludeFolders
 
-    $macros = Get-ChildItem `
-        $knowledgeBaseRoot `
-        -Filter *.4do `
-        -Recurse `
-        -File
+	robocopy @robocopyArgs
 
-    foreach ($macro in $macros)
-    {
-        $relativePath = $macro.FullName.Substring($knowledgeBaseRoot.Length).TrimStart("\")
+	# -----------------------------------------------------------------
+	# PUBLISH .4DO FILES TO USERLIB
+	# -----------------------------------------------------------------
 
-        $destination = Join-Path $userLibRoot $relativePath
+	Write-Host ""
+	Write-Host "=== Publishing .4do files to UserLib ==="
+	Write-Host ""
 
-        $destinationFolder = Split-Path $destination -Parent
+	$macros = Get-ChildItem `
+		-LiteralPath $knowledgeBaseRoot `
+		-Filter "*.4do" `
+		-File `
+		-Recurse
 
-        if (!(Test-Path $destinationFolder))
-        {
-            New-Item `
-                -ItemType Directory `
-                -Path $destinationFolder `
-                -Force | Out-Null
-        }
+	foreach ($macro in $macros)
+	{
+		$relativePath = $macro.FullName.Substring(
+			$knowledgeBaseRoot.Length
+		).TrimStart('\')
 
-        Copy-Item `
-            $macro.FullName `
-            $destination `
-            -Force
+		$topFolder = $relativePath.Split('\')[0]
 
-        Write-Host "Published: $relativePath"
-    }
+		if ($excludeFolders -contains $topFolder)
+		{
+			Write-Host "Skipped: $topFolder"
+			continue
+		}
+
+		$destination = Join-Path $userLibRoot $relativePath
+
+		$destinationFolder = Split-Path `
+			-Path $destination `
+			-Parent
+
+		if (-not (Test-Path $destinationFolder))
+		{
+			New-Item `
+				-ItemType Directory `
+				-Path $destinationFolder `
+				-Force | Out-Null
+		}
+
+		Copy-Item `
+			-LiteralPath $macro.FullName `
+			-Destination $destination `
+			-Force
+
+		Write-Host "Published: $relativePath"
+	}
 
     Write-Host ""
     Write-Host "=== Git Status ==="
