@@ -1,140 +1,122 @@
 # ---------------------------------------------------------------------
 # sync.ps1
 #
-# Safer Git sync helper for:
-#   C:\12d\12dPL_Data\Code
-#
-# This script:
-#   - Shows current Git status
-#   - Warns about ignored/generated file types
-#   - Asks before staging
-#   - Shows staged changes
-#   - Asks before committing
-#   - Asks before pushing
-#
-# It does NOT blindly commit without review.
+# 1. Copy repository to SharePoint Knowledge Base
+# 2. Copy .4do files to UserLib
+# 3. Git add / commit / push
 # ---------------------------------------------------------------------
 
 $ErrorActionPreference = "Stop"
 
 $repoRoot = "C:\12d\12dPL_Data\Code"
 
-function Stop-IfNotYes {
-    param(
-        [string]$Prompt
-    )
+$knowledgeBaseRoot = "C:\Users\kprado\The Neil Group Ltd\12d Macro Knowledge Base - 12d_KB_MACROS"
+
+$userLibRoot = "F:\DATA\12d\15.00\User_Lib"
+
+function Ask-YesNo
+{
+    param([string]$Prompt)
 
     $answer = Read-Host $Prompt
 
-    if ($answer.ToLower() -notin @("y", "yes")) {
+    if ($answer.ToLower() -notin @("y","yes"))
+    {
         Write-Host "Cancelled."
-        exit 0
+        exit
     }
 }
 
-try {
-    if (-not (Test-Path $repoRoot)) {
-        throw "Repo folder not found: $repoRoot"
+try
+{
+    Write-Host ""
+    Write-Host "=== Publishing to Knowledge Base ==="
+    Write-Host ""
+
+    robocopy `
+        $repoRoot `
+        $knowledgeBaseRoot `
+        /E `
+        /MIR `
+        /XD ".git" ".vs" "Test"
+
+    Write-Host ""
+    Write-Host "=== Publishing .4do files to UserLib ==="
+    Write-Host ""
+
+    $macros = Get-ChildItem `
+        $knowledgeBaseRoot `
+        -Filter *.4do `
+        -Recurse `
+        -File
+
+    foreach ($macro in $macros)
+    {
+        $relativePath = $macro.FullName.Substring($knowledgeBaseRoot.Length).TrimStart("\")
+
+        $destination = Join-Path $userLibRoot $relativePath
+
+        $destinationFolder = Split-Path $destination -Parent
+
+        if (!(Test-Path $destinationFolder))
+        {
+            New-Item `
+                -ItemType Directory `
+                -Path $destinationFolder `
+                -Force | Out-Null
+        }
+
+        Copy-Item `
+            $macro.FullName `
+            $destination `
+            -Force
+
+        Write-Host "Published: $relativePath"
     }
+
+    Write-Host ""
+    Write-Host "=== Git Status ==="
+    Write-Host ""
 
     Set-Location $repoRoot
 
-    $insideRepo = git rev-parse --is-inside-work-tree 2>$null
-
-    if ($LASTEXITCODE -ne 0 -or $insideRepo -ne "true") {
-        throw "Not inside a Git repository: $repoRoot"
-    }
-
-    Write-Host ""
-    Write-Host "Repo:"
-    Write-Host "  $repoRoot"
-    Write-Host ""
-
-    # -----------------------------------------------------------------
-    # CHECK STATUS
-    # -----------------------------------------------------------------
-
-    $status = git status --short
-
-    if (-not $status) {
-        Write-Host "No changes to commit."
-        exit 0
-    }
-
-    Write-Host "Current Git status:"
-    Write-Host ""
     git status --short
-    Write-Host ""
 
-    # -----------------------------------------------------------------
-    # CHECK FOR TRACKED FILE TYPES THAT SHOULD USUALLY NOT BE TRACKED
-    # -----------------------------------------------------------------
-
-    Write-Host "Checking for tracked generated/local file types..."
-    $trackedGenerated = git ls-files "*.4do" "*.4dl" "*.tmp" "*.pdf" "*.json" "*.txt" "*.log"
-
-    if ($trackedGenerated) {
-        Write-Host ""
-        Write-Host "WARNING: The following generated/local file types are tracked by Git:"
-        Write-Host ""
-        $trackedGenerated
-        Write-Host ""
-        Write-Host "Review these before continuing."
-        Stop-IfNotYes "Continue anyway? y/n"
-    }
-    else {
-        Write-Host "No tracked generated/local file types found."
-    }
-
-    Write-Host ""
-
-    # -----------------------------------------------------------------
-    # STAGE
-    # -----------------------------------------------------------------
-
-    Stop-IfNotYes "Stage all current changes with git add -A? y/n"
+    Ask-YesNo "Stage all changes? (y/n)"
 
     git add -A
 
-    Write-Host ""
-    Write-Host "Staged changes:"
-    Write-Host ""
     git status --short
-    Write-Host ""
 
-    # -----------------------------------------------------------------
-    # COMMIT
-    # -----------------------------------------------------------------
+	# -----------------------------------------------------------------
+	# COMMIT
+	# -----------------------------------------------------------------
 
-    Stop-IfNotYes "Commit these staged changes? y/n"
+	Ask-YesNo "Commit changes? (y/n)"
 
-    $message = Read-Host "Enter commit message, or leave blank for timestamp message"
+	$message = Read-Host "Commit message"
 
-    if ([string]::IsNullOrWhiteSpace($message)) {
-        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-        $message = "Update macros: $timestamp"
-    }
+	if ([string]::IsNullOrWhiteSpace($message))
+	{
+		$message = "Update macros $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+	}
 
-    git commit -m $message
+	git commit -m $message
 
-    # -----------------------------------------------------------------
-    # PUSH
-    # -----------------------------------------------------------------
-
-    Write-Host ""
-    Stop-IfNotYes "Push to GitHub now? y/n"
+    Ask-YesNo "Push to GitHub? (y/n)"
 
     git push
 
     Write-Host ""
-    Write-Host "Done. Changes committed and pushed."
-    Write-Host ""
-    git status --short
+    Write-Host "====================================="
+    Write-Host "Knowledge Base updated"
+    Write-Host "UserLib updated"
+    Write-Host "GitHub updated"
+    Write-Host "====================================="
 }
-catch {
+catch
+{
     Write-Host ""
     Write-Host "ERROR:"
     Write-Host $_.Exception.Message
-    Write-Host ""
-    exit 1
 }
