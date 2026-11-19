@@ -2,7 +2,7 @@
 **   Programmer:           KLP
 **   Date:                 2026-05-27
 **   12D Model:            V15
-**   Version:              002
+**   Version:              010
 **   Macro Name:           String_grid_smoothing_panel.4dm
 **   Type:                 SOURCE
 **
@@ -24,6 +24,9 @@
 **
 **---------------------------------------------------------------------
 **   Update/Modification
+**  Version 0.001: Initial release.
+**  Version 0.002: Minor bug fixes and performance improvements.
+**  Version 0.003 Date 08/11/2026: Exclusion zone support added.
 **
 **  This macro may be reproduced, modified and used without restriction.
 **  The author grants all users Unlimited Use of the source code and any
@@ -37,7 +40,7 @@
 #define ECHO_DEBUG_FILE 0
 #define ECHO_LINE_NO    0
 
-#define BUILD "version.0.002"
+#define BUILD "version.0.010"
 
 // ----------------------------- INCLUDES -----------------------------
 #include "standard_library.H"
@@ -135,7 +138,6 @@ Integer apply_median_spike_filter(
             idx = (iy - ymin) * x_count + (ix - xmin) + 1;
 
             if(!valid[idx]) continue;
-
             z = source_z[idx];
             count = 0;
 
@@ -377,6 +379,7 @@ Integer apply_gaussian_filter(
 Integer apply_median_spike_filter_array(
     Real &source_z[],
     Integer &valid[],
+    Integer &protected_cell[],
     Integer x_count,
     Integer xmin,
     Integer ymin,
@@ -417,6 +420,7 @@ Integer apply_median_spike_filter_array(
             idx = (iy - ymin) * x_count + (ix - xmin) + 1;
 
             if(!valid[idx]) continue;
+            if(protected_cell[idx]) continue;
 
             z = source_z[idx];
             count = 0;
@@ -479,6 +483,7 @@ Integer apply_median_spike_filter_array(
 Integer apply_gaussian_filter_array(
     Real &source_z[],
     Integer &valid[],
+    Integer &protected_cell[],
     Integer x_count,
     Integer y_count,
     Integer xmin,
@@ -563,6 +568,10 @@ Integer apply_gaussian_filter_array(
                 idx = (iy - ymin) * x_count + (ix - xmin) + 1;
 
                 if(!valid[idx]) continue;
+                if(protected_cell[idx]) {
+                    target_z[idx] = source_z[idx];
+                    continue;
+                }
 
                 sum_w = 0.0;
                 sum_z = 0.0;
@@ -622,6 +631,7 @@ Integer apply_gaussian_filter_array(
 Integer apply_bilateral_filter_array(
     Real &source_z[],
     Integer &valid[],
+    Integer &protected_cell[],
     Integer x_count,
     Integer y_count,
     Integer xmin,
@@ -711,6 +721,7 @@ Integer apply_bilateral_filter_array(
             idx = (iy - ymin) * x_count + (ix - xmin) + 1;
 
             if(!valid[idx]) continue;
+            if(protected_cell[idx]) continue;
 
             centre_z = source_z[idx];
             sum_w = 0.0;
@@ -868,7 +879,7 @@ void update_median_bilateral_defaults(
 void mainPanel(){
  
     Text panelName="String grid smoothing";
-    Panel              panel  = Create_panel              (panelName,TRUE);
+    Panel              panel  = Create_panel              (panelName,TRUE,1,1);
     Vertical_Group     vgroup = Create_vertical_group     (-1         );
     Colour_Message_Box cmbMsg = Create_colour_message_box (""         );
 
@@ -900,6 +911,9 @@ void mainPanel(){
 
     // Signature: Model_Box Create_model_box(Text title,Message_Box message,Integer mode)
     Model_Box mb_out_model_name = Create_model_box("Output model",cmbMsg,CHECK_MODEL_CREATE);
+    // Optional existing model containing closed polygon exclusion zones.
+    Model_Box mb_exclusion_zones = Create_model_box("Exclusion zones",cmbMsg,CHECK_MODEL_EXISTS);
+    Set_optional(mb_exclusion_zones,1);
 
     // Signature: Named_Tick_Box Create_named_tick_box(Text title,Integer state,Text response)
     Named_Tick_Box ntb_use_median_filter = Create_named_tick_box("Apply median spike correction",1,"use_median_filter");
@@ -977,9 +991,59 @@ void mainPanel(){
 
     //////////// Group containers ///////////////////////////////////////////
     Vertical_Group vg_input_output    = Create_vertical_group(-1);
-    Vertical_Group vg_median_filter   = Create_vertical_group(-1);
+    Vertical_Group vg_median_filter    = Create_vertical_group(-1);
     Vertical_Group vg_bilateral_filter = Create_vertical_group(-1);
-    Vertical_Group vg_gaussian_filter = Create_vertical_group(-1);
+    Vertical_Group vg_gaussian_filter  = Create_vertical_group(-1);
+
+    // Sam-style compact More controls: add/remove bitmap button plus label.
+    Horizontal_Group hg_median_more = Create_horizontal_group(-1);
+    Widget_Pages wp_median_more = Create_widget_pages();
+    Button btn_median_show = Create_bitmap_button("show","show_median_settings","icon_add.bmp");
+    Button btn_median_hide = Create_bitmap_button("hide","hide_median_settings","icon_remove.bmp");
+    Append(btn_median_show,wp_median_more);
+    Append(btn_median_hide,wp_median_more);
+    Set_page(wp_median_more,1);
+    Screen_Text st_median_more = Create_screen_text("   More");
+    Append(wp_median_more,hg_median_more);
+    Append(st_median_more,hg_median_more);
+
+    Horizontal_Group hg_bilateral_more = Create_horizontal_group(-1);
+    Widget_Pages wp_bilateral_more = Create_widget_pages();
+    Button btn_bilateral_show = Create_bitmap_button("show","show_bilateral_settings","icon_add.bmp");
+    Button btn_bilateral_hide = Create_bitmap_button("hide","hide_bilateral_settings","icon_remove.bmp");
+    Append(btn_bilateral_show,wp_bilateral_more);
+    Append(btn_bilateral_hide,wp_bilateral_more);
+    Set_page(wp_bilateral_more,1);
+    Screen_Text st_bilateral_more = Create_screen_text("   More");
+    Append(wp_bilateral_more,hg_bilateral_more);
+    Append(st_bilateral_more,hg_bilateral_more);
+
+    Horizontal_Group hg_gaussian_more = Create_horizontal_group(-1);
+    Widget_Pages wp_gaussian_more = Create_widget_pages();
+    Button btn_gaussian_show = Create_bitmap_button("show","show_gaussian_settings","icon_add.bmp");
+    Button btn_gaussian_hide = Create_bitmap_button("hide","hide_gaussian_settings","icon_remove.bmp");
+    Append(btn_gaussian_show,wp_gaussian_more);
+    Append(btn_gaussian_hide,wp_gaussian_more);
+    Set_page(wp_gaussian_more,1);
+    Screen_Text st_gaussian_more = Create_screen_text("   More");
+    Append(wp_gaussian_more,hg_gaussian_more);
+    Append(st_gaussian_more,hg_gaussian_more);
+
+    // Dynamic pages provide compact collapsed/expanded advanced settings.
+    Vertical_Group vg_median_collapsed    = Create_vertical_group(-1);
+    Vertical_Group vg_median_details      = Create_vertical_group(-1);
+    Vertical_Group vg_bilateral_collapsed = Create_vertical_group(-1);
+    Vertical_Group vg_bilateral_details   = Create_vertical_group(-1);
+    Vertical_Group vg_gaussian_collapsed  = Create_vertical_group(-1);
+    Vertical_Group vg_gaussian_details    = Create_vertical_group(-1);
+
+    Widget_Pages wp_median_settings    = Create_widget_pages();
+    Widget_Pages wp_bilateral_settings = Create_widget_pages();
+    Widget_Pages wp_gaussian_settings  = Create_widget_pages();
+
+    Set_dynamic_sizing(wp_median_settings,1);
+    Set_dynamic_sizing(wp_bilateral_settings,1);
+    Set_dynamic_sizing(wp_gaussian_settings,1);
 
     // Signature: Integer Set_border(Vertical_Group group,Text text)
     Set_border(vg_input_output,"Input / Output");
@@ -1013,7 +1077,7 @@ void mainPanel(){
         "Select or create the model where the new output String_Grid will be placed.");
 
     Set_tooltip(ntb_use_median_filter,
-        "Enable median spike filtering. Best for isolated high or low elevation spikes.");
+        "Tick to apply Median spike correction using the values supplied by the selected smoothing preset. Untick to skip this method.");
 
     Set_tooltip(ib_median_window_size,
         "Odd window size for median filter. Use 3 for normal use. Larger values are slower and more aggressive.");
@@ -1028,7 +1092,7 @@ void mainPanel(){
         "Minimum valid neighbouring cells required before a median value is used.");
 
     Set_tooltip(ntb_use_bilateral_filter,
-        "Enable Bilateral weighted smoothing. Best for 1 m LiDAR DEM cleanup while preserving kerbs and sharp terrain breaks.");
+        "Tick to apply Bilateral edge-aware smoothing using the values supplied by the selected smoothing preset. Untick to skip this method.");
 
     Set_tooltip(ib_bilateral_window_size,
         "Odd Bilateral window size. Conservative default is 3 to better preserve channels and drains.");
@@ -1046,7 +1110,7 @@ void mainPanel(){
         "Maximum Bilateral vertical change per cell. Conservative 0.05 m default limits feature loss.");
 
     Set_tooltip(ntb_use_gaussian_filter,
-        "Enable Gaussian weighted smoothing. Best for light general smoothing of noisy grids.");
+        "Tick to apply Gaussian broad smoothing using the current Gaussian values. Untick to skip this method.");
 
     Set_tooltip(rb_gauss_radius,
         "Neighbour search radius for Gaussian smoothing. Larger radius increases runtime.");
@@ -1066,25 +1130,41 @@ void mainPanel(){
     Append(cb_smoothing_preset,vg_input_output);
     Append(nb_out_grid_name   ,vg_input_output);
     Append(mb_out_model_name  ,vg_input_output);
+    Append(mb_exclusion_zones  ,vg_input_output);
 
-    Append(ntb_use_median_filter  ,vg_median_filter);
-    Append(ib_median_window_size        ,vg_median_filter);
-    Append(rb_spike_tolerance           ,vg_median_filter);
-    Append(rb_median_max_vertical_change,vg_median_filter);
-    Append(ib_min_valid_neighbours      ,vg_median_filter);
+    Append(ntb_use_median_filter      ,vg_median_filter);
+    Append(hg_median_more             ,vg_median_filter);
+    Append(ib_median_window_size         ,vg_median_details);
+    Append(rb_spike_tolerance            ,vg_median_details);
+    Append(rb_median_max_vertical_change ,vg_median_details);
+    Append(ib_min_valid_neighbours       ,vg_median_details);
+    Append(vg_median_collapsed,wp_median_settings);
+    Append(vg_median_details  ,wp_median_settings);
+    Set_page(wp_median_settings,vg_median_collapsed);
+    Append(wp_median_settings,vg_median_filter);
 
-    Append(ntb_use_bilateral_filter       ,vg_bilateral_filter);
-    Append(ib_bilateral_window_size       ,vg_bilateral_filter);
-    Append(rb_bilateral_sigma_spatial     ,vg_bilateral_filter);
-    Append(rb_bilateral_sigma_range       ,vg_bilateral_filter);
-    Append(rb_bilateral_noise_threshold   ,vg_bilateral_filter);
-    Append(rb_bilateral_max_vertical_change,vg_bilateral_filter);
+    Append(ntb_use_bilateral_filter        ,vg_bilateral_filter);
+    Append(hg_bilateral_more               ,vg_bilateral_filter);
+    Append(ib_bilateral_window_size        ,vg_bilateral_details);
+    Append(rb_bilateral_sigma_spatial      ,vg_bilateral_details);
+    Append(rb_bilateral_sigma_range        ,vg_bilateral_details);
+    Append(rb_bilateral_noise_threshold    ,vg_bilateral_details);
+    Append(rb_bilateral_max_vertical_change,vg_bilateral_details);
+    Append(vg_bilateral_collapsed,wp_bilateral_settings);
+    Append(vg_bilateral_details  ,wp_bilateral_settings);
+    Set_page(wp_bilateral_settings,vg_bilateral_collapsed);
+    Append(wp_bilateral_settings,vg_bilateral_filter);
 
-    Append(ntb_use_gaussian_filter,vg_gaussian_filter);
-    Append(rb_gauss_radius        ,vg_gaussian_filter);
-    Append(rb_gauss_sigma         ,vg_gaussian_filter);
-    Append(ib_gauss_passes        ,vg_gaussian_filter);
-    Append(rb_max_vertical_change ,vg_gaussian_filter);
+    Append(ntb_use_gaussian_filter     ,vg_gaussian_filter);
+    Append(hg_gaussian_more           ,vg_gaussian_filter);
+    Append(rb_gauss_radius        ,vg_gaussian_details);
+    Append(rb_gauss_sigma         ,vg_gaussian_details);
+    Append(ib_gauss_passes        ,vg_gaussian_details);
+    Append(rb_max_vertical_change ,vg_gaussian_details);
+    Append(vg_gaussian_collapsed,wp_gaussian_settings);
+    Append(vg_gaussian_details  ,wp_gaussian_settings);
+    Set_page(wp_gaussian_settings,vg_gaussian_collapsed);
+    Append(wp_gaussian_settings,vg_gaussian_filter);
 
     ///////////////ADDING WIDGETS TO PANEL///////////////////////////
     // add your widgets to vgroup
@@ -1102,6 +1182,9 @@ void mainPanel(){
 
     Append(vgroup,panel);
     Show_widget(panel);
+
+    // Widget_Pages start on their compact collapsed pages.
+
     Integer doit = 1;
     while(doit)
     {
@@ -1150,7 +1233,55 @@ void mainPanel(){
             if(cmd == "Panel Quit") doit = 0;
             if(cmd == "Panel About") about_panel(panel);
         }
-        break; 
+        break;
+        case Get_id(btn_median_show) :
+        {
+            if(cmd == "show_median_settings") {
+                Set_page(wp_median_more,2);
+                Set_page(wp_median_settings,vg_median_details);
+            }
+        }
+        break;
+        case Get_id(btn_median_hide) :
+        {
+            if(cmd == "hide_median_settings") {
+                Set_page(wp_median_more,1);
+                Set_page(wp_median_settings,vg_median_collapsed);
+            }
+        }
+        break;
+        case Get_id(btn_bilateral_show) :
+        {
+            if(cmd == "show_bilateral_settings") {
+                Set_page(wp_bilateral_more,2);
+                Set_page(wp_bilateral_settings,vg_bilateral_details);
+            }
+        }
+        break;
+        case Get_id(btn_bilateral_hide) :
+        {
+            if(cmd == "hide_bilateral_settings") {
+                Set_page(wp_bilateral_more,1);
+                Set_page(wp_bilateral_settings,vg_bilateral_collapsed);
+            }
+        }
+        break;
+        case Get_id(btn_gaussian_show) :
+        {
+            if(cmd == "show_gaussian_settings") {
+                Set_page(wp_gaussian_more,2);
+                Set_page(wp_gaussian_settings,vg_gaussian_details);
+            }
+        }
+        break;
+        case Get_id(btn_gaussian_hide) :
+        {
+            if(cmd == "hide_gaussian_settings") {
+                Set_page(wp_gaussian_more,1);
+                Set_page(wp_gaussian_settings,vg_gaussian_collapsed);
+            }
+        }
+        break;
         case Get_id(cb_smoothing_preset) :
         case Get_id(rb_grid_resolution) :
         case Get_id(rb_vertical_rmse) :
@@ -1180,6 +1311,12 @@ void mainPanel(){
                 Text in_grid_name = "";
                 Text out_grid_name = "";
                 Text out_model_name = "";
+                Text exclusion_model_name = "";
+
+                Model exclusion_model;
+                Integer exclusion_model_selected = 0;
+                Dynamic_Element exclusion_polygons;
+                Integer exclusion_polygon_count = 0;
 
                 Text median_window_size_text = "";
                 Text spike_tolerance_text = "";
@@ -1217,6 +1354,7 @@ void mainPanel(){
                 Real max_vertical_change = 0.0;
 
                 Integer valid = 1;
+                Integer rc = 0;
                 Text error_msg = "";
 
                 // Signature: Integer Get_data(New_Select_Box select,Text &string)
@@ -1234,6 +1372,7 @@ void mainPanel(){
 
                 // Signature: Integer Get_data(Model_Box box,Text &data)
                 Get_data(mb_out_model_name,out_model_name);
+                Get_data(mb_exclusion_zones,exclusion_model_name);
 
                 // Signature: Integer Get_data(Integer_Box box,Text &data)
                 Get_data(ib_median_window_size,median_window_size_text);
@@ -1324,6 +1463,88 @@ void mainPanel(){
                 if(out_model_name == "") {
                     valid = 0;
                     error_msg += "Output model name is blank\n";
+                }
+
+                if(exclusion_model_name != "") {
+                    Integer exclusion_model_validation = Validate(
+                        mb_exclusion_zones,
+                        CHECK_MODEL_EXISTS,
+                        exclusion_model);
+
+                    if(exclusion_model_validation == MODEL_EXISTS) {
+                        exclusion_model_selected = 1;
+                        rc = Get_elements(
+                            exclusion_model,
+                            exclusion_polygons,
+                            exclusion_polygon_count);
+
+                        if(rc != 0) {
+                            valid = 0;
+                            error_msg += "Could not read elements from the exclusion zones model\n";
+                        }
+
+                        if(exclusion_polygon_count < 1) {
+                            valid = 0;
+                            error_msg += "Exclusion zones model does not contain any elements\n";
+                        }
+
+                        Integer exclusion_check_i = 0;
+                        for(exclusion_check_i = 1;
+                            exclusion_check_i <= exclusion_polygon_count;
+                            exclusion_check_i++) {
+
+                            Element exclusion_check_polygon;
+                            Integer is_closed = 0;
+                            Integer self_intersects = 0;
+                            Integer good_polygon = 0;
+                            Element checked_polygon;
+                            Text exclusion_name = "";
+
+                            rc = Get_item(
+                                exclusion_polygons,
+                                exclusion_check_i,
+                                exclusion_check_polygon);
+
+                            if(rc != 0) {
+                                valid = 0;
+                                error_msg += "Could not read exclusion element "
+                                    + To_text(exclusion_check_i) + "\n";
+                                continue;
+                            }
+
+                            Get_name(exclusion_check_polygon,exclusion_name);
+                            rc = String_closed(exclusion_check_polygon,is_closed);
+                            if(rc != 0 || !is_closed) {
+                                valid = 0;
+                                error_msg += "Exclusion element is not a closed string: "
+                                    + exclusion_name + "\n";
+                                continue;
+                            }
+
+                            rc = String_self_intersects(
+                                exclusion_check_polygon,
+                                self_intersects);
+                            if(rc != 0 || self_intersects) {
+                                valid = 0;
+                                error_msg += "Exclusion polygon self-intersects or could not be checked: "
+                                    + exclusion_name + "\n";
+                                continue;
+                            }
+
+                            rc = Check_polygon(
+                                exclusion_check_polygon,
+                                good_polygon,
+                                checked_polygon);
+                            if(rc != 0 || !good_polygon) {
+                                valid = 0;
+                                error_msg += "Exclusion element is not a valid polygon: "
+                                    + exclusion_name + "\n";
+                            }
+                        }
+                    } else {
+                        valid = 0;
+                        error_msg += "Exclusion zones model must be an existing model\n";
+                    }
                 }
 
                 if(use_median_filter) {
@@ -1472,7 +1693,6 @@ void mainPanel(){
                 Integer input_cell_count = 0;
                 Real input_cell_count_million = 0.0;
 
-                Integer rc = 0;
 
                 // Signature: Integer Validate(New_Select_Box select,Element &string)
                 rc = Validate(nsb_in_grid_name,in_grid);
@@ -1577,11 +1797,13 @@ void mainPanel(){
                 Real original_z[total_cells];
                 Real work_z[total_cells];
                 Integer valid_cell[total_cells];
+                Integer protected_cell[total_cells];
 
                 for(idx = 1; idx <= total_cells; idx++) {
                     original_z[idx] = 0.0;
                     work_z[idx] = 0.0;
                     valid_cell[idx] = 0;
+                    protected_cell[idx] = 0;
                 }
 
                 for(iy = ymin; iy <= ymax; iy++) {
@@ -1602,6 +1824,35 @@ void mainPanel(){
                     }
                 }
 
+                Integer protected_cells = 0;
+                if(exclusion_model_selected) {
+                    Real grid_cos = Cos(grid_angle);
+                    Real grid_sin = Sin(grid_angle);
+                    Real cell_x = 0.0;
+                    Real cell_y = 0.0;
+                    Integer exclusion_i = 0;
+                    Integer inside_status = 0;
+                    for(iy = ymin; iy <= ymax; iy++) {
+                        for(ix = xmin; ix <= xmax; ix++) {
+                            idx = (iy - ymin) * grid_columns + (ix - xmin) + 1;
+                            if(!valid_cell[idx]) continue;
+                            cell_x = origin_x + (ix * spacing_x * grid_cos) - (iy * spacing_y * grid_sin);
+                            cell_y = origin_y + (ix * spacing_x * grid_sin) + (iy * spacing_y * grid_cos);
+                            for(exclusion_i = 1; exclusion_i <= exclusion_polygon_count; exclusion_i++) {
+                                Element exclusion_polygon;
+                                rc = Get_item(exclusion_polygons,exclusion_i,exclusion_polygon);
+                                if(rc != 0) continue;
+                                inside_status = 0;
+                                rc = XY_inside_polygon(exclusion_polygon,cell_x,cell_y,inside_status);
+                                if(rc == 0 && inside_status != 0) {
+                                    protected_cell[idx] = 1;
+                                    protected_cells++;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
                 Integer median_altered_cells = 0;
                 Integer median_clipped_cells = 0;
 
@@ -1609,6 +1860,7 @@ void mainPanel(){
                     median_altered_cells = apply_median_spike_filter_array(
                         work_z,
                         valid_cell,
+                        protected_cell,
                         grid_columns,
                         xmin,
                         ymin,
@@ -1629,6 +1881,7 @@ void mainPanel(){
                     bilateral_altered_cells = apply_bilateral_filter_array(
                         work_z,
                         valid_cell,
+                        protected_cell,
                         grid_columns,
                         grid_rows,
                         xmin,
@@ -1652,6 +1905,7 @@ void mainPanel(){
                     gaussian_altered_cells = apply_gaussian_filter_array(
                         work_z,
                         valid_cell,
+                        protected_cell,
                         grid_columns,
                         grid_rows,
                         xmin,
@@ -1665,6 +1919,16 @@ void mainPanel(){
                         gauss_passes,
                         max_vertical_change
                     );
+                }
+
+                // Final exclusion-zone safeguard: restore exact input Z values.
+                // Each filter also skips protected target cells.
+                Integer protected_restored_cells = 0;
+                for(idx = 1; idx <= total_cells; idx++) {
+                    if(valid_cell[idx] && protected_cell[idx]) {
+                        work_z[idx] = original_z[idx];
+                        protected_restored_cells++;
+                    }
                 }
 
                 diff_count = 0;
@@ -1749,6 +2013,12 @@ void mainPanel(){
                 Print("Loaded input grid height cells: " + To_text(copied_cells) + "\n");
                 Print("Written output grid height cells: " + To_text(written_cells) + "\n");
                 Print("Skipped/undefined cells: " + To_text(skipped_cells) + "\n");
+                Print("Exclusion polygons: " + To_text(exclusion_polygon_count) + "\n");
+                Print("Protected cells classified by polygon: " + To_text(protected_cells) + "\n");
+                Print("Protected cells restored before output: " + To_text(protected_restored_cells) + "\n");
+                if(exclusion_model_selected && protected_cells == 0) {
+                    Print("WARNING: Exclusion model was selected but no grid cells were inside its polygons. Check polygon location and grid geometry.\n");
+                }
                 Print("Median altered cells: " + To_text(median_altered_cells) + "\n");
                 Print("Median max-change clipped cells: " + To_text(median_clipped_cells) + "\n");
                 Print("Bilateral altered cells: " + To_text(bilateral_altered_cells) + "\n");
@@ -1768,6 +2038,7 @@ void mainPanel(){
                 Print("String_grid smoothing finished.");
                 Print();
 
+                Null(exclusion_polygons);
                 Set_data(cmbMsg,"Process finished. See output window for report.");
             }
         }

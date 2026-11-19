@@ -956,7 +956,9 @@ Integer Run_stage_4A1_undershoot_repair(Element site,Dynamic_Element &internal_s
 
 Integer Run_stage_3_noding(Element site,Dynamic_Element &internal_strings,
                            Integer internal_count,Model output_model,Real output_level,
-                           Real node_tolerance,Real arc_working_tolerance,Real minimum_segment_length,
+                           Real node_tolerance,Real arc_working_tolerance,
+                           Real minimum_segment_length,
+                           Real minimum_face_area,
                            Real maximum_undershoot_extension,
                            Integer &physical_output_created,
                            Integer &summary_polygons_created,
@@ -2134,7 +2136,6 @@ Integer Run_stage_3_noding(Element site,Dynamic_Element &internal_strings,
     Integer stage5d_rejected_exterior=0;
     Integer stage5d_trace_failures=0;
     Integer stage5d_max_steps=directed_count+1;
-    Real minimum_face_area=0.001;
     Dynamic_Integer component_exterior_start,component_exterior_steps;
     Dynamic_Real component_exterior_sample_x,component_exterior_sample_y;
 
@@ -2934,10 +2935,10 @@ Integer physical_output_created=0;
         repair_pass++;
         physical_output_created=0;
         noding_status=Run_stage_3_noding(site,internal_strings,internal_count,output_model,output_level,
-                       node_tolerance,arc_working_tolerance,minimum_segment_length,
-                       maximum_undershoot_extension,physical_output_created,
-                       summary_polygons_created,summary_polygons_with_holes,summary_islands,
-                       summary_dangles_removed,summary_temporary_removed);
+                        node_tolerance,arc_working_tolerance,minimum_segment_length,
+                        minimum_face_area, maximum_undershoot_extension,physical_output_created,
+                        summary_polygons_created,summary_polygons_with_holes,summary_islands,
+                        summary_dangles_removed,summary_temporary_removed);
         if(noding_status==2)
         {
             total_repairs_applied++;

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Renames selected Super strings using sequential numbering.
+Renames selected elements using sequential numbering.
 
 The macro applies a user-defined naming pattern consisting of an optional prefix, a sequential number, and an optional suffix. Numbers start from a nominated value and increment by a user-specified amount.
 
@@ -63,17 +63,9 @@ V15
 
 ## Inputs
 
-### Super Strings
+### Elements
 
-Select one or more Super strings.
-
-Only elements with type:
-
-```text
-Super
-```
-
-are processed.
+Select one or more 12d elements.
 
 ### Prefix
 
@@ -119,7 +111,7 @@ Must be greater than zero.
 
 ## Outputs
 
-Renames selected Super strings.
+Renames selected elements.
 
 Generated names follow:
 
@@ -145,19 +137,19 @@ MH120_SW
 
 ## Workflow
 
-1. Select Super strings.
+1. Select 12d elements.
 2. Enter optional prefix.
 3. Enter optional suffix.
 4. Enter starting number.
 5. Enter increment value.
 6. Select Process.
-7. Each Super string is renamed.
+7. Each element is renamed.
 8. Sequential numbering is updated after each successful rename.
 9. A completion message reports the total number renamed.
 
 ## Name Generation Logic
 
-For each Super string:
+For each element:
 
 ```text
 New Name = Prefix + Number + Suffix
@@ -227,7 +219,7 @@ Result:
 The macro validates:
 
 - A project is open.
-- At least one Super string is selected.
+- At least one element is selected.
 - The increment is greater than zero.
 - The starting number is valid.
 
@@ -238,13 +230,13 @@ If no project is open the macro exits immediately.
 The completion message reports:
 
 ```text
-Process completed. Renamed X super strings.
+Process completed. Renamed X elements.
 ```
 
 The Output Window also reports:
 
 ```text
-Super String Rename Macro - Build 15.0.001
+Elements Rename Macro - Build 15.0.001
 ```
 
 and
@@ -258,19 +250,17 @@ Macro finished
 - Prefix and suffix are optional.
 - Numbering can start at any integer value.
 - Increment can be any positive integer.
-- Non-Super elements are ignored.
 - Existing names are overwritten.
 
 ## Limitations
 
 - No undo records are created.
 - No duplicate-name checking is performed.
-- Only Super strings are renamed.
 - Name uniqueness is the responsibility of the user.
 
 ## Keywords
 
-rename, super string, sequential numbering, prefix, suffix, naming convention, utilities, bulk rename, element management
+rename, sequential numbering, prefix, suffix, naming convention, utilities, bulk rename, element management
 
 ## Related Macros
 
@@ -282,4 +272,4 @@ rename, super string, sequential numbering, prefix, suffix, naming convention, u
 
 | Version | Date | Notes |
 |---|---|---|
-| 001 | 18/08/2025 | Initial version. Bulk renames selected Super strings using prefix, suffix, starting number and increment values. |
+| 001 | 18/08/2025 | Initial version. Bulk renames selected elements using prefix, suffix, starting number and increment values. |

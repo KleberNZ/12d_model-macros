@@ -46,13 +46,13 @@ void mainPanel();
 
 void mainPanel(){
     
-    Text panelName = "Rename Super Strings";
+    Text panelName = "Rename Elements Panel";
     Panel panel = Create_panel(panelName, TRUE);
     Vertical_Group vgroup = Create_vertical_group(-1);
     Colour_Message_Box cmbMsg = Create_colour_message_box("");
 
     ///////////////////CREATE INPUT WIDGETS////////////////
-    Source_Box sb_source = Create_source_box("Super Strings", cmbMsg, 0);
+    Source_Box sb_source = Create_source_box("Elements", cmbMsg, 0);
     Input_Box ipb_prefix = Create_input_box("Prefix", cmbMsg);
     Input_Box ipb_suffix = Create_input_box("Suffix", cmbMsg);
     Integer_Box ib_start = Create_integer_box("Starting Number", cmbMsg);
@@ -133,7 +133,7 @@ void mainPanel(){
                     Get_number_of_items(de_source, source_count);
                     if(source_count <= 0)
                     {
-                        Set_error_message(sb_source, "No super strings selected");
+                        Set_error_message(sb_source, "No elements selected");
                         break;
                     }
 
@@ -166,27 +166,18 @@ void mainPanel(){
                         Element element;
                         if(Get_item(de_source, i, element) == 0)
                         {
-                            // Check if it's a super string
-                            Text element_type = "";
-                            Get_type(element, element_type);
-                            
-                            if(element_type == "Super")
+                            Text number_text = To_text(current_number);
+                            Text new_name = prefix_text + number_text + suffix_text;
+
+                            if(Set_name(element, new_name) == 0)
                             {
-                                // Convert number to text and create new name
-                                Text number_text = To_text(current_number);
-                                Text new_name = prefix_text + number_text + suffix_text;
-                                
-                                // Rename the element
-                                if(Set_name(element, new_name) == 0)
-                                {
-                                    current_number += increment_num;
-                                    processed++;
-                                }
+                                current_number += increment_num;
+                                processed++;
                             }
                         }
-                    }
+                    }       
                     
-                    Text result_msg = "Process completed. Renamed " + To_text(processed) + " super strings.";
+                    Text result_msg = "Process completed. Renamed " + To_text(processed) + " elements.";
                     Set_data(cmbMsg, result_msg);
                 }
             }
